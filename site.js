@@ -22,6 +22,7 @@ Lab.course = {
     'labs/m2-matrix.js',
     'labs/m2-rowreduce.js',
     'labs/m2-cramer.js',
+    'labs/m2-vectors.js',
     'labs/m2-dependence.js',
     'pages/home.js',
   ],
