@@ -1,0 +1,91 @@
+/* Revise — styles for Week 2, lessons L2.1–L2.5 (independence checker, stem plots, graph of g, lesson blocks) */
+
+.w-indep, .w-stem, .w-graphg, .w-iid, .w-memo, .w-param {
+  background: var(--bg-sunk); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px; position: relative;
+}
+.w-indep > * + *, .w-stem > * + *, .w-graphg > * + *, .w-iid > * + *, .w-memo > * + *, .w-param > * + * { margin-top: 14px; }
+.w-indep .w-joint, .w-param .w-joint, .w-param .w-mosaic, .w-memo .w-bars, .w-iid .w-bars {
+  background: transparent; border: 0; padding: 0; border-radius: 0;
+}
+
+/* ------------------------------------------------------------ independence checker */
+.ic-pair { display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: flex-start; }
+.ic-side { min-width: 0; max-width: 100%; }
+.ic-side .ws-title { margin-bottom: 8px; }
+.w-indep .jt-cell.ic-click { cursor: pointer; }
+.w-indep .jt-cell.ic-click:hover { border-color: var(--pick-line); }
+.ic-readout > div + div { margin-top: 2px; }
+.ic-verdict { font-size: 15.5px; line-height: 1.55; }
+.ic-verdict:empty { display: none; }
+
+/* ------------------------------------------------------------ stem plots */
+.stem-stage { position: relative; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 14px; padding: 6px 8px; overflow-x: auto; }
+.stem-svg { width: 100%; min-width: 520px; height: auto; display: block; }
+.stem-head { font: 650 12.5px var(--font-sans); letter-spacing: .02em; }
+.stem-head.x { fill: var(--x); }
+.stem-head.z { fill: var(--z); }
+.stem-axis { stroke: var(--line-2); stroke-width: 1.5; }
+.stem-strip { stroke: var(--z-line); stroke-width: 1; stroke-dasharray: 3 4; }
+.stem-land { fill: var(--z); opacity: .7; }
+.stem-link { fill: none; stroke: var(--ink-4); stroke-width: 1.1; opacity: .55; transition: stroke .2s, opacity .2s, stroke-width .2s; }
+.stem-link.hot { stroke: var(--pick); opacity: 1; stroke-width: 2; }
+.stem-bar.x { fill: var(--x); }
+.stem-bar.z { fill: var(--z); }
+.stem-bar.z.alt { fill: color-mix(in srgb, var(--z) 62%, var(--bg-elev)); }
+.stem-bar.moving { fill: var(--pick); }
+.stem-bar.landed { fill: var(--z); }
+.stem.gone .stem-bar { opacity: .18; }
+.stem { cursor: default; }
+.stem-tick { font: 600 11.5px var(--font-sans); font-variant-numeric: tabular-nums; }
+.stem-tick.x { fill: var(--x); }
+.stem-tick.z { fill: var(--z); }
+.stem-p { font: 600 11px var(--font-sans); fill: var(--ink-2); font-variant-numeric: tabular-nums; }
+.stem-hit { fill: transparent; cursor: default; }
+
+/* ------------------------------------------------------------ graph of g */
+.gg-stage { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 14px; padding: 8px; overflow-x: auto; }
+.gg-svg { width: 100%; min-width: 440px; height: auto; display: block; }
+.gg-curve { fill: none; stroke: var(--ink-4); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.gg-level { stroke: var(--pick); stroke-width: 2; stroke-dasharray: 7 5; }
+.gg-pt { fill: var(--x); stroke: var(--bg-elev); stroke-width: 1.5; cursor: pointer; transition: r .2s, opacity .2s; }
+.gg-pt.on { fill: var(--pick); }
+.gg-pt.dim { opacity: .35; }
+.gg-axis { font: 700 12px var(--font-sans); }
+.gg-axis.x { fill: var(--x); }
+.gg-axis.z { fill: var(--z); }
+.gg-levels { flex-wrap: wrap; }
+
+/* ------------------------------------------------------------ lesson blocks (L2.1–L2.5) */
+.param-row { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-start; }
+.param-row > div { min-width: 0; }
+.param-verdict { font-size: 15.5px; }
+
+.iid-coins { display: flex; flex-wrap: wrap; gap: 8px; }
+.iid-coin { border: 1.5px solid var(--line-2); background: var(--bg-elev); border-radius: 12px; padding: 6px 8px 4px; cursor: pointer; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; font: 600 11px var(--font-sans); color: var(--ink-3); }
+.iid-coin:hover { border-color: var(--accent-line); }
+.iid-coin .coin { width: 30px; height: 30px; }
+.iid-out { font-size: 15.5px; overflow-x: auto; }
+
+.smp-row { display: flex; flex-wrap: wrap; gap: 6px; min-height: 36px; align-items: center; }
+.smp-chip { width: 30px; height: 30px; border-radius: 9px; display: inline-grid; place-items: center; font: 700 14px var(--font-mono); background: var(--bg-elev); border: 1.5px solid var(--line-2); color: var(--ink-2); }
+.smp-chip.v3 { background: var(--y-soft); border-color: var(--y-line); color: var(--y); }
+.smp-chip.v4 { background: var(--x-soft); border-color: var(--x-line); color: var(--x); }
+.smp-flags { display: flex; flex-wrap: wrap; gap: 8px; }
+.smp-flag { padding: 4px 10px; border-radius: 99px; font-size: 13px; border: 1px solid var(--line); background: var(--bg-elev); color: var(--ink-3); }
+.smp-flag.yes { background: var(--good-soft); border-color: var(--good-line); color: var(--good); font-weight: 650; }
+.smp-table td, .smp-table th { padding: 7px 12px; font-size: 14px; }
+
+.memo-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 760px) { .memo-pair { grid-template-columns: minmax(0, 1fr); } }
+
+.pattern-tbl td, .pattern-tbl th { padding: 6px 9px; font-size: 13.5px; }
+.pattern-tbl td.dots { color: var(--ink-3); }
+.pattern-tbl tr.y-row td { color: var(--z); font-weight: 650; }
+.runbar { display: flex; height: 30px; border-radius: 9px; overflow: hidden; border: 1px solid var(--line); background: var(--bg-elev); }
+.runbar > div { display: grid; place-items: center; font: 650 12.5px var(--font-sans); color: #fff; white-space: nowrap; overflow: hidden; transition: flex-grow .4s var(--ease); }
+.runbar .run-a { background: var(--z); }
+.runbar .run-b { background: color-mix(in srgb, var(--x) 70%, var(--bg-elev)); }
+
+/* the parameter block has its own verdict line, so the mosaic's built-in one is hidden there */
+.w-param .w-mosaic .ws-readout { display: none; }
+.w-param .mo-svg { max-width: 520px; }

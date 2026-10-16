@@ -1,0 +1,119 @@
+/* Independence lab (labs/s2-w2-indep.js) — Statistics II, Week 2, L2.1–L2.2. Every class starts with t3-. */
+
+/* tabs */
+.t3-tabs { margin: 6px 0 8px; }
+.t3-tabs .seg { display: flex; width: 100%; padding: 4px; border-radius: 13px; }
+.t3-tabs .seg button { flex: 1 1 0; min-width: 0; padding: 9px 12px; font-size: 14.5px; font-weight: 650; border-radius: 10px; white-space: normal; line-height: 1.25; }
+.t3-tabcap { font-size: 14px; color: var(--ink-3); margin: 0 4px 16px; line-height: 1.5; }
+.t3-status { padding: 10px 14px; border-radius: 12px; background: var(--bad-soft); border: 1px solid var(--bad-line); color: var(--ink); font-size: 14.5px; line-height: 1.5; }
+.t3-status[hidden] { display: none; }
+.t3-tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--bg-elev); border: 1px solid var(--accent-line); color: var(--accent-ink); margin-right: 4px; vertical-align: 1px; line-height: 1.45; }
+.t3-gap { margin-top: 12px; }
+/* grid items may not grow past the column: long formulas scroll inside their own box */
+.t3-lab .pl-main > *, .t3-lab .pl-controls > * { min-width: 0; }
+/* the table editor: columns share the controls width instead of taking each input's natural ~190 px */
+.t3-lab .ge-grid { width: auto; }
+.t3-lab .pl-panel-body > .callout { font-size: 15.5px; }
+.t3-lab .callout .c-body > .t3-line { margin-top: 4px; }
+
+/* tables drawn the lecture's way: X across (blue), Y down (orange) */
+.t3-wrap { max-width: 100%; }
+.t3-grid th, .t3-grid td { padding: 7px 10px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); white-space: nowrap; }
+.t3-grid tr > :last-child { border-right: 0; }
+.t3-grid tbody tr:last-child > * { border-bottom: 0; }
+.t3-grid .t3-corner { font-size: 12px; color: var(--ink-3); background: var(--bg-sunk); font-weight: 500; }
+.t3-grid th.vx, .t3-lab th.t3-v0 { background: var(--x-soft); color: var(--x); }
+.t3-grid th.vy, .t3-lab th.t3-v1, .t3-ctab td.vy { background: var(--y-soft); color: var(--y); }
+.t3-lab th.t3-v2 { background: var(--z-soft); color: var(--z); }
+.t3-grid .t3-mh { background: var(--bg-sunk); font-size: 12.5px; color: var(--ink-2); }
+.t3-grid td.t3-m { background: var(--bg-sunk); font-weight: 600; }
+.t3-grid tr.t3-foot > * { border-top: 1.5px solid var(--line-2); }
+.t3-grid td.t3-tot { color: var(--ink-3); }
+.t3-grid td.zero { color: var(--ink-3); }
+.t3-grid td.ok { background: color-mix(in srgb, var(--good-soft) 80%, var(--bg-elev)); }
+.t3-grid td.bad { background: color-mix(in srgb, var(--bad-soft) 80%, var(--bg-elev)); }
+.t3-grid td.first { box-shadow: inset 0 0 0 2.5px var(--pick); }
+.t3-grid td .katex { font-size: 1.25em; }
+.t3-fx { display: block; font-size: 11.5px; color: var(--ink-3); line-height: 1.35; }
+.t3-eqv { display: block; font-size: 14px; line-height: 1.45; }
+.t3-pair { display: inline-block; }
+.t3-mk { display: block; font-weight: 800; font-size: 13px; line-height: 1.2; margin-top: 2px; }
+td.ok .t3-mk { color: var(--good); }
+td.bad .t3-mk { color: var(--bad); }
+.t3-tmpl td { min-width: 64px; }
+.t3-ctab td, .t3-ctab th { white-space: nowrap; }
+.t3-ctab tr.t3-badrow td:not(.vy) { background: color-mix(in srgb, var(--bad-soft) 70%, var(--bg-elev)); }
+.t3-allt tr.t3-cur > th { box-shadow: inset 3px 0 0 var(--pick); }
+
+/* lines of maths that may be wider than the panel */
+.t3-lines { display: grid; gap: 3px; min-width: 0; }
+.t3-line { overflow-x: auto; overflow-y: hidden; padding: 2px 0; font-size: 15.5px; line-height: 1.7; scrollbar-width: thin; min-width: 0; }
+@media (min-width: 641px) { .t3-lines .t3-line .katex { white-space: nowrap; } }
+.t3-small .t3-line { font-size: 14px; }
+.t3-cols2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; align-items: start; }
+.t3-cols3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 20px; align-items: start; }
+.t3-verdict { font-size: 15.5px; line-height: 1.55; }
+.t3-segrow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.t3-flash { border-color: var(--good-line); background: var(--good-soft); font-size: 14.5px; }
+
+/* free-number control (L2.1 table 3) */
+.t3-param { display: grid; gap: 10px; }
+.t3-param:empty { display: none; }
+.t3-pread { font-size: 14px; min-height: 0; }
+.t3-details { font-size: 14px; color: var(--ink-2); }
+.t3-details summary { cursor: pointer; font-weight: 600; color: var(--accent-ink); }
+.t3-details[open] summary { margin-bottom: 6px; }
+.t3-details .pl-chips { margin-top: 8px; }
+
+/* tuples (tab 2) */
+.t3-tuples { min-height: 190px; font-size: 14px; line-height: 1.55; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+.t3-scroll { max-height: 380px; overflow: auto; }
+.t3-tup th, .t3-tup td { padding: 5px 12px; }
+.t3-tup th { position: sticky; top: 0; z-index: 1; }
+.t3-mut tr.t3-badrow td { background: color-mix(in srgb, var(--bad-soft) 65%, var(--bg-elev)); }
+.t3-mut tr.t3-first td { box-shadow: inset 0 2px 0 var(--pick), inset 0 -2px 0 var(--pick); }
+.t3-mut tr.t3-unlisted td { color: var(--ink-3); }
+.t3-pairbox + .t3-pairbox { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--line-2); }
+
+/* i.i.d. (tab 3) */
+.t3-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.t3-chip { min-width: 40px; height: 32px; padding: 0 10px; border-radius: 99px; border: 1.5px solid var(--line-2); background: var(--bg-elev); font: 650 14px var(--font-mono); color: var(--ink-2); cursor: pointer; transition: background .15s, border-color .15s; }
+.t3-chip:hover { border-color: var(--pick-line); }
+.t3-chip.on { background: var(--pick-soft); border-color: var(--pick); color: var(--ink); }
+.t3-ab { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.t3-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 10px; }
+.t3-tile { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; display: grid; gap: 4px; min-width: 0; align-content: start; }
+.t3-tile-h { font-size: 12px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+.t3-tile-f { font-size: 13px; color: var(--ink-2); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.t3-tile-f .katex, .t3-tile-v .katex { white-space: nowrap; }
+.t3-tile-v { font-size: 17px; font-weight: 650; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.t3-draws { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.t3-draw { font: 650 13.5px var(--font-mono); min-width: 30px; text-align: center; padding: 3px 8px; border-radius: 8px; background: var(--bg-sunk); border: 1px solid var(--line); }
+.t3-draw.in { background: var(--pick-soft); border-color: var(--pick); }
+.t3-simtab { display: grid; gap: 6px; }
+.t3-simt td, .t3-simt th { padding: 6px 12px; }
+.t3-gsim { display: grid; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line-2); }
+.t3-gsim .ws-title { margin-bottom: 0; }
+
+@media (max-width: 900px) {
+  .t3-cols3 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .t3-cols2 { grid-template-columns: minmax(0, 1fr); }
+  .t3-tabs .seg button { font-size: 12.5px; padding: 8px 6px; }
+  .t3-grid th, .t3-grid td { padding: 6px 7px; }
+  .t3-tiles { grid-template-columns: minmax(0, 1fr); }
+  .t3-lab .pl-ans-big .katex-display > .katex { font-size: 1.1em; }
+}
+
+/* L2.10: functions g(X), h(Y) (tab 1) */
+.t3-fnbox { display: grid; gap: 10px; }
+.t3-fnbox[hidden], .t3-lab .pl-panel[hidden] { display: none !important; }
+.t3-src { font: 600 13.5px var(--font-mono); background: var(--bg-sunk); border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; white-space: nowrap; color: var(--ink); }
+.t3-map td, .t3-map th { text-align: center; min-width: 34px; }
+.t3-map .t3-mh { text-align: left; }
+.t3-fnbody { display: grid; gap: 10px; min-width: 0; }
+.t3-fnbody > * { min-width: 0; }
+.t3-fnbody > .ws-title { margin-bottom: 0; }
+/* keep the first line of an answer box clear of its pin button (30 px at the top right) */
+.t3-lab .pl-answer > .pl-ans-ev:first-child { padding-right: 26px; }
