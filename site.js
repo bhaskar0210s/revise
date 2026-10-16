@@ -19,6 +19,7 @@ Lab.course = {
     'labs/s2-w2-gxy.js',
     'labs/s2-w2-sum.js',
     'labs/s2-w2-maxmin.js',
+    'labs/m2-matrix.js',
     'labs/m2-cramer.js',
     'labs/m2-dependence.js',
     'pages/home.js',
