@@ -4,7 +4,7 @@
 
 <p align="center"><b>Labs for Statistics II and Mathematics II that fit in your pocket.</b><br>
 Type your own numbers and every table, chart and step updates, with each number worked out.<br>
-About 750 KB in all. It works offline after the first visit, on a phone or a computer.</p>
+About 760 KB in all. It works offline after the first visit, on a phone or a computer.</p>
 
 <p align="center">
   <img src="docs/phone-light.png" width="250" alt="The list of labs on an iPhone">
@@ -33,6 +33,12 @@ About 750 KB in all. It works offline after the first visit, on a phone or a com
 |---|---|
 | 1 | Joint, marginal & conditional (L1.1–L1.3) · Build a joint PMF from pieces (L1.4) · Three or more variables (L1.5–L1.7) |
 | 2 | Independence (L2.1–L2.2) · Function of one random variable (L2.3–L2.5) · Function of two random variables (L2.6–L2.7) · Sums and convolution (L2.8, L2.10) · Maximum and minimum (L2.9, L2.11) |
+
+**Mathematics II**
+
+| Week | Labs |
+|---|---|
+| 2 | Cramer's rule and inverse |
 
 <p align="center">
   <img src="docs/desktop-light.png" width="860" alt="The independence lab on a computer">
@@ -66,11 +72,11 @@ serve the folder (`python3 -m http.server`) and open `http://localhost:8000`.
 
 ## How it stays small
 
-- **No framework, no build tools.** The labs and the code they share are written by hand: about 330 KB
+- **No framework, no build tools.** The labs and the code they share are written by hand: about 350 KB
   of JavaScript and CSS over the network.
 - **One library.** KaTeX typesets the maths (330 KB with its fonts); see `THIRD-PARTY-NOTICES`.
 - **System fonts.** Text uses the fonts already on your device, so none are downloaded.
-- **One download.** The first visit stores every file (750 KB, measured with gzip, as GitHub Pages serves
+- **One download.** The first visit stores every file (760 KB, measured with gzip, as GitHub Pages serves
   it). After that, opening a lab needs no network at all.
 
 <p align="center">

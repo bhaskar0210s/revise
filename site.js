@@ -8,6 +8,7 @@ Lab.course = {
   units: [],
   how: [],
   labSections: [['s2', 'Statistics II'], ['m2', 'Mathematics II']],
+  lectureOnly: true,
   foot: 'Watch the lecture first, then try it here with your own numbers.',
   files: [
     'labs/s2-w1-joint.js',
@@ -18,6 +19,7 @@ Lab.course = {
     'labs/s2-w2-gxy.js',
     'labs/s2-w2-sum.js',
     'labs/s2-w2-maxmin.js',
+    'labs/m2-cramer.js',
     'pages/home.js',
   ],
 };

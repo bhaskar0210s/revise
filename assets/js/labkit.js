@@ -84,7 +84,10 @@
   K.presets = function ({ label = 'Lecture examples', items, onPick }) {
     const sel = h('select', { class: 'field pl-select' });
     sel.appendChild(h('option', { value: '', text: '— choose an example —' }));
-    items.forEach((it, k) => sel.appendChild(h('option', { value: String(k), text: it.label })));
+    // A site with Lab.course.lectureOnly lists only the lecture's examples, not the course's questions
+    // (labels "AQ2.3 Q1 · …", "PA1 Q4 · …"). Option values stay the indices into items.
+    const hide = it => Lab.course && Lab.course.lectureOnly && /^(AQ|TQ|PA|GA|PPA|GrPA)\s?\d/.test(it.label || '');
+    items.forEach((it, k) => { if (!hide(it)) sel.appendChild(h('option', { value: String(k), text: it.label })); });
     const src = h('div', { class: 'pl-hint' });
     sel.addEventListener('change', () => {
       if (sel.value === '') { src.textContent = ''; return; }

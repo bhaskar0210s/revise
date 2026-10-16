@@ -270,6 +270,7 @@ input[type="range"].slider.pl-range { width: auto; flex: 1; min-width: 0; }
   input, select, textarea { font-size: 16px !important; }
   .btn { min-height: 40px; }
   .btn.sm, .btn.xs { min-height: 36px; }
+  .pl-sheet-bar .btn { min-height: 44px; padding: 0 18px; }
   .seg button { min-height: 40px; }
   input[type="range"].slider { height: 32px; }
 }
