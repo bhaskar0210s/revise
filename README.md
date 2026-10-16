@@ -4,7 +4,7 @@
 
 <p align="center"><b>Labs for Statistics II and Mathematics II that fit in your pocket.</b><br>
 Type your own numbers and every table, chart and step updates, with each number worked out.<br>
-About 760 KB in all. It works offline after the first visit, on a phone or a computer.</p>
+About 790 KB in all. It works offline after the first visit, on a phone or a computer.</p>
 
 <p align="center">
   <img src="docs/phone-light.png" width="250" alt="The list of labs on an iPhone">
@@ -39,6 +39,7 @@ About 760 KB in all. It works offline after the first visit, on a phone or a com
 | Week | Labs |
 |---|---|
 | 2 | Cramer's rule and inverse |
+| 3 | Linear dependence |
 
 <p align="center">
   <img src="docs/desktop-light.png" width="860" alt="The independence lab on a computer">
@@ -72,11 +73,11 @@ serve the folder (`python3 -m http.server`) and open `http://localhost:8000`.
 
 ## How it stays small
 
-- **No framework, no build tools.** The labs and the code they share are written by hand: about 350 KB
+- **No framework, no build tools.** The labs and the code they share are written by hand: about 370 KB
   of JavaScript and CSS over the network.
 - **One library.** KaTeX typesets the maths (330 KB with its fonts); see `THIRD-PARTY-NOTICES`.
 - **System fonts.** Text uses the fonts already on your device, so none are downloaded.
-- **One download.** The first visit stores every file (760 KB, measured with gzip, as GitHub Pages serves
+- **One download.** The first visit stores every file (790 KB, measured with gzip, as GitHub Pages serves
   it). After that, opening a lab needs no network at all.
 
 <p align="center">
