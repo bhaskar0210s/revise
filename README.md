@@ -7,7 +7,7 @@ Type your own numbers and every table, chart and step updates, with each number 
 About 850 KB in all. It works offline after the first visit, on a phone or a computer.</p>
 
 <p align="center">
-  <img src="docs/phone-light.png" width="250" alt="The list of labs on an iPhone">
+  <img src="docs/phone-light.png" width="250" alt="Choosing a course on an iPhone">
   <img src="docs/phone-values.png" width="250" alt="Changing the values of a lab on an iPhone">
   <img src="docs/phone-dark.png" width="250" alt="The results of a lab in dark mode">
 </p>
@@ -16,6 +16,8 @@ About 850 KB in all. It works offline after the first visit, on a phone or a com
 
 ## What it does
 
+- **Pick your course first.** The first page asks: Statistics II or Mathematics II. The site remembers your
+  choice, and the sidebar shows only that course's weeks.
 - **Every value is yours.** Change a table cell, a probability, a distribution or a matrix entry, and every
   table, chart and formula redraws at once.
 - **No number without its origin.** Each sum, product and division is written out with your numbers, step by
@@ -43,7 +45,7 @@ About 850 KB in all. It works offline after the first visit, on a phone or a com
 | 3 | Linear dependence |
 
 <p align="center">
-  <img src="docs/desktop-light.png" width="860" alt="The independence lab on a computer">
+  <img src="docs/desktop-light.png" width="860" alt="The Statistics II labs on a computer">
 </p>
 
 ## Put it on your iPhone

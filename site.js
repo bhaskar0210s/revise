@@ -4,7 +4,7 @@ Lab.course = {
   title: 'Statistics II · Mathematics II',
   subtitle: 'Statistics II · Mathematics II',
   homePage: 'labs-home',
-  labsIndex: '',
+  homeLabel: 'Courses',
   units: [],
   how: [],
   labSections: [['s2', 'Statistics II'], ['m2', 'Mathematics II']],

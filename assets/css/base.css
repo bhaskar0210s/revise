@@ -358,3 +358,11 @@ html[data-width="full"] .home { max-width: 1320px; }
 .dock-min { display: none; }
 @media (max-width: 900px) { .dock-min { display: inline-grid; } }
 .pop { width: 300px; }
+
+/* touch screens: 44 px targets for the top bar buttons and the sidebar links; pins are for wide screens with a pointer */
+@media (pointer: coarse) {
+  .icon-btn { width: 44px; height: 44px; }
+  .side-link { min-height: 44px; }
+  .sk-item { min-height: 44px; }
+}
+@media (pointer: coarse) and (max-height: 500px) { .pin-btn { display: none !important; } }

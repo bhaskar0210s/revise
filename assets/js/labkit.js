@@ -29,7 +29,9 @@
       title: def.title, parent: 'playground',
       render(el) {
         el.classList.add('lab-page');
-        const idx = Lab.course.labsIndex != null ? Lab.course.labsIndex : 'p/playground';
+        if (Lab.course.onLabOpen) Lab.course.onLabOpen(def);
+        const li = Lab.course.labsIndex;   // a site may give one index per course
+        const idx = typeof li === 'function' ? li(def) : li != null ? li : 'p/playground';
         el.appendChild(h('a', { class: 'lab-back', href: '#/' + idx, html: Lab.icon('arrowLeft') + '<span>All labs</span>' }));
         Lab.pageHead(el, ({ s1: 'Statistics I', s2: 'Statistics II', m2: 'Mathematics II' }[def.course] || 'Statistics II') + ' · ' + (def.sub || 'Week ' + def.week), def.title, def.desc);
         const host = h('div', { class: 'lab-host' });

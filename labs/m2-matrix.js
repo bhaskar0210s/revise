@@ -22,7 +22,7 @@
 .mxl .mx-size { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .mxl .mx-size-f { display: grid; gap: 4px; min-width: 0; }
 .mxl .mx-size .seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
-.mxl .mx-size .seg button { padding: 6px 0; font-size: 15px; font-weight: 650; min-height: 38px; }
+.mxl .mx-size .seg button { padding: 6px 0; font-size: 15px; font-weight: 650; min-height: 44px; }
 .mxl .mx-grid { display: grid; gap: 6px; }
 .mxl .mx-in { width: 100%; min-width: 0; height: 44px; padding: 0 4px; text-align: center; font-size: 16px; }
 .mxl .mx-k { width: 110px; height: 44px; padding: 0 8px; text-align: center; font-size: 16px; }
@@ -109,7 +109,7 @@
   .mxl .mx-term { padding: 10px 10px 4px; }
   .mxl .mx-sym { font-size: 18px; }
 }
-@media (pointer: coarse) { .mxl button.mxv-c { min-height: 40px; min-width: 36px; } }
+@media (pointer: coarse) { .mxl button.mxv-c { min-height: 44px; min-width: 36px; } }
 `;
   function addStyle() {
     if (document.getElementById('mx-lab-style')) return;

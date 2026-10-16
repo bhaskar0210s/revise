@@ -24,6 +24,7 @@
 .mv-lab .mv-del { width: 24px; height: 24px; }
 .mv-lab .mv-del svg { width: 13px; height: 13px; }
 .mv-lab .mv-del[disabled] { opacity: .3; cursor: default; }
+@media (pointer: coarse) { .mv-lab .mv-del { width: 44px; height: 44px; } .mv-lab .mv-del svg { width: 16px; height: 16px; } }   /* a finger-sized delete button on touch screens */
 .mv-lab .mv-name { font-weight: 700; }
 .mv-lab .mv-name.v0 { color: var(--x); background: var(--x-soft); border-color: var(--x-line); }
 .mv-lab .mv-name.v1 { color: var(--y); background: var(--y-soft); border-color: var(--y-line); }

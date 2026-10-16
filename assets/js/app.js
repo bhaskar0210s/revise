@@ -81,7 +81,7 @@
       h('span', { class: 'brand-mark', html: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M4 19V11M9.33 19V6M14.66 19V9M20 19V13"/></svg>' }),
       h('span', {}, h('div', { class: 'brand-name', text: Lab.course.brand || 'Revise' }), h('div', { class: 'brand-sub', text: Lab.course.subtitle }))));
     const links = h('nav', { class: 'side-links' });
-    const pageLinks = [{ href: '#/', label: 'Overview', ic: 'home', key: 'home' }]
+    const pageLinks = [{ href: '#/', label: Lab.course.homeLabel || 'Overview', ic: 'home', key: 'home' }]
       .concat(Object.values(pages).filter(p => p.nav).sort((a, b) => (a.order || 0) - (b.order || 0)).map(p => ({ href: '#/p/' + p.id, label: p.nav, ic: p.icon || 'book', key: 'p:' + p.id })));
     pageLinks.forEach(l => links.appendChild(h('a', { class: 'side-link', href: l.href, dataset: { key: l.key }, html: icon(l.ic) + '<span>' + l.label + '</span>' })));
     side.appendChild(links);
@@ -151,7 +151,9 @@
       if (rest.length) section('sk:' + u.id, u.tag + (u.short ? ' · ' + u.short : ''), rest.map(id => lessonItem(id)), false);
     });
     // labs-only sites (no lessons, no question bank): one section per course and week, listing its labs
+    const picked = Lab.course.pickCourse ? Lab.course.pickCourse() : null;   // a site with a course chooser lists one course at a time
     (Lab.course.labSections || []).forEach(([c, name]) => {
+      if (picked && c !== picked) return;
       const labs = (Lab.labs || []).filter(l => l.course === c);
       const weeksOf = l => (l.weeks && l.weeks.length ? l.weeks : [l.week]);
       [...new Set(labs.flatMap(weeksOf))].sort((a, b) => a - b).forEach(w => {
@@ -209,6 +211,7 @@
     window.scrollTo(0, 0);
   }
   Lab.onCleanup = fn => cleanup.push(fn);
+  Lab.rebuildSidebar = () => { buildSidebar(); markActive(); };
 
   function setCrumbs(html) { const c = $('#crumbs'); if (c) c.innerHTML = html; }
   function setTopProgress(frac, label) {
