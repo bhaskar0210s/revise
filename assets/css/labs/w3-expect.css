@@ -1,0 +1,65 @@
+/* lab styles: labs/s2-w3-expect.js (Statistics II Week 3) — Expected value lab */
+
+/* controls */
+.ex-lab .ex-ctl { display: grid; gap: 12px; min-width: 0; }
+.ex-lab .ex-ctl[hidden] { display: none !important; }
+.ex-lab .ex-exact { font-size: 16px; }
+
+/* invalid input: a short red message above the answer; the panels keep the last valid values */
+.ex-err { border-radius: var(--r-lg); padding: 12px 16px; background: var(--bad-soft); border: 1px solid var(--bad-line); color: var(--bad); font-size: 14.5px; line-height: 1.5; }
+.ex-err[hidden] { display: none !important; }
+.ex-err > div + div { margin-top: 4px; }
+
+/* text and maths inside the panels */
+.ex-lab .pl-panel-body > * + * { margin-top: 10px; }
+.ex-p { font-size: 15px; line-height: 1.6; color: var(--ink-2); min-width: 0; overflow-wrap: anywhere; }
+.ex-p.small { font-size: 13.5px; }
+.ex-h { margin: 18px 0 0; font-size: 15.5px; font-weight: 650; color: var(--ink); line-height: 1.45; }
+.ex-h:first-child { margin-top: 0; }
+/* long sums are inline maths: KaTeX breaks them at + and = so they wrap on phones (no sideways page scroll) */
+.ex-math { font-size: 16px; line-height: 2.05; color: var(--ink); min-width: 0; overflow-wrap: anywhere; padding: 2px 0; }
+.ex-math .katex { white-space: normal; }
+.ex-code { font-family: var(--font-mono); font-size: 0.95em; background: var(--bg-sunk); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+
+/* verdicts and notes */
+.ex-verdict { border-radius: var(--r-md); padding: 9px 13px; font-size: 14.5px; line-height: 1.6; }
+.ex-verdict.good { background: var(--good-soft); border: 1px solid var(--good-line); }
+.ex-verdict.bad { background: var(--warn-soft); border: 1px solid var(--warn-line); }
+.ex-box { border-radius: var(--r-md); padding: 9px 13px; font-size: 14.5px; line-height: 1.6; }
+.ex-box.note { background: var(--accent-soft); border: 1px solid var(--accent-line); }
+.ex-box.warn { background: var(--warn-soft); border: 1px solid var(--warn-line); }
+.ex-box.good { background: var(--good-soft); border: 1px solid var(--good-line); }
+.ex-box.bad { background: var(--bad-soft); border: 1px solid var(--bad-line); color: var(--bad); }
+
+/* tables (they may slide sideways inside their own box, never up and down) */
+.ex-tbl td, .ex-tbl th { padding: 6px 12px; white-space: nowrap; }
+.ex-tbl .katex { white-space: nowrap; }
+.ex-tbl tr.ex-zero td, .ex-tbl td.ex-zero { color: var(--ink-4); }
+.ex-tbl tr.ex-rest td { background: var(--bg-sunk); font-style: italic; }
+.ex-joint .ex-xh { color: var(--x); }
+.ex-joint .ex-yh { color: var(--y); }
+.ex-joint .ex-m { background: var(--bg-sunk); font-weight: 600; }
+.ex-joint .ex-mh { background: var(--bg-sunk-2); }
+
+/* charts: drawn in layout pixels (redrawn when the box changes width) */
+.ex-chart { min-width: 0; width: 100%; }
+.ex-svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
+.ex-grid { stroke: var(--line); stroke-width: 1; }
+.ex-axis { stroke: var(--ink-3); stroke-width: 1.4; }
+.ex-tick { font: 600 11.5px var(--font-sans); fill: var(--ink-3); }
+.ex-tick.ex-tx { fill: var(--ink-2); }
+.ex-tick.ex-ax { font-weight: 500; font-size: 11px; }
+.ex-stick { stroke-width: 2.4; stroke-linecap: round; }
+.ex-dot { stroke-width: 2; }
+.ex-stem.tone-x .ex-stick { stroke: var(--x); }
+.ex-stem.tone-x .ex-dot { fill: var(--x-soft); stroke: var(--x); }
+.ex-stem.tone-z .ex-stick { stroke: var(--z); }
+.ex-stem.tone-z .ex-dot { fill: var(--z-soft); stroke: var(--z); }
+.ex-mean { stroke: var(--pick); stroke-width: 2; stroke-dasharray: 6 4; }
+.ex-fulcrum { fill: var(--pick); }
+.ex-mean-lab { font: 700 12.5px var(--font-sans); fill: var(--pick); }
+.ex-run { fill: none; stroke: var(--x); stroke-width: 2; stroke-linejoin: round; }
+.ex-run-dot { fill: var(--x); }
+
+/* simulation buttons */
+.ex-simbtns { gap: 8px; }

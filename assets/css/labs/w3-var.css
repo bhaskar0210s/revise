@@ -1,0 +1,56 @@
+/* lab styles: labs/s2-w3-var.js (Statistics II Week 3) — Variance and standard deviation lab */
+
+/* controls */
+.w3v-lab .w3v-ctl { display: grid; gap: 12px; min-width: 0; }
+.w3v-lab .w3v-ctl[hidden] { display: none !important; }
+.w3v-lab .w3v-ab { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.w3v-lab .w3v-ab .pl-field { min-width: 0; }
+.w3v-lab .w3v-ab input:disabled { opacity: .55; }
+
+/* invalid input: a short red message above the answer; the pictures keep the last valid values */
+.w3v-err { border-radius: var(--r-lg); padding: 12px 16px; background: var(--bad-soft); border: 1px solid var(--bad-line); color: var(--bad); font-size: 14.5px; line-height: 1.5; }
+.w3v-err[hidden] { display: none !important; }
+.w3v-err > div + div { margin-top: 4px; }
+/* keep the first line of the answer box clear of its pin button */
+.w3v-lab .pl-answer > .pl-ans-ev:first-child { padding-right: 26px; }
+
+/* the PMF on a number line with mu and the band mu ± sigma */
+.w3v-chart { width: 100%; min-width: 0; min-height: 232px; }
+.w3v-svg { display: block; user-select: none; -webkit-user-select: none; }
+.w3v-band { fill: var(--pick-soft); }
+.w3v-axis { stroke: var(--line-2); stroke-width: 1.2; }
+.w3v-bar { fill: var(--x); fill-opacity: .82; }
+.w3v-chart.tone-z .w3v-bar { fill: var(--z); }
+.w3v-col:hover .w3v-bar { fill-opacity: 1; }
+.w3v-pv { fill: var(--ink-2); font: 600 10.5px var(--font-sans); }
+.w3v-tick { fill: var(--ink-3); font: 600 11.5px var(--font-sans); }
+.w3v-mu { stroke: var(--pick); stroke-width: 2; stroke-dasharray: 5 4; }
+.w3v-mulab { fill: var(--pick); font: 700 12.5px var(--font-sans); }
+.w3v-brk { fill: none; stroke: var(--pick); stroke-width: 1.6; stroke-linejoin: round; }
+.w3v-brklab { fill: var(--pick); font: 650 12px var(--font-sans); }
+.w3v-read { margin-top: 8px; }
+.w3v-sub { margin-top: 14px; min-width: 0; }
+.w3v-sub > .ws-title { margin-bottom: 6px; }
+
+/* tables */
+.w3v-tw { margin-top: 4px; }
+.w3v-tbl td, .w3v-tbl th { padding: 6px 12px; }
+.w3v-tbl th .katex { white-space: nowrap; }
+.w3v-tbl tr.w3v-zero td { color: var(--ink-4); background: color-mix(in srgb, var(--bg-sunk-2) 60%, transparent); }
+.w3v-tbl tr.w3v-rest td { color: var(--ink-3); font-style: italic; }
+.w3v-tbl tfoot td { border-top: 2px solid var(--line-2); border-bottom: 0; font-weight: 650; background: var(--bg-sunk); }
+
+/* long sums written out: they wrap at + on phones; a part that cannot wrap slides sideways in its own line */
+.w3v-long { overflow-x: auto; overflow-y: hidden; padding: 3px 0 5px; line-height: 2; }
+.w3v-aside { margin-top: 14px; }
+
+@media (max-width: 560px) {
+  .w3v-tbl td, .w3v-tbl th { padding: 5px 8px; }
+}
+
+/* formulas in table cells stay on one line (the table slides sideways instead) */
+.w3v-tbl td .katex, .w3v-tbl th .katex { white-space: nowrap; }
+/* bar labels keep a halo where the dashed mu line crosses them */
+.w3v-pv { paint-order: stroke; stroke: var(--bg-elev); stroke-width: 3px; stroke-linejoin: round; }
+.w3v-lab .w3v-abnote { margin-top: -4px; }
+.w3v-lab .w3v-abnote[hidden] { display: none !important; }

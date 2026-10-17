@@ -4,8 +4,8 @@
   const icon = Lab.icon;
   const COURSES = [
     { key: 's2', name: 'Statistics II', full: 'Statistics for Data Science II', ic: 'sigma', term: 'This term',
-      blurb: 'Joint, marginal and conditional distributions, independence, functions of random variables, sums, maxima and minima.',
-      weeks: { 1: 'Multiple random variables: joint, marginal and conditional PMFs', 2: 'Independence, and functions of random variables' } },
+      blurb: 'Joint, marginal and conditional distributions, independence, functions of random variables, expectation, variance, covariance and correlation.',
+      weeks: { 1: 'Multiple random variables: joint, marginal and conditional PMFs', 2: 'Independence, and functions of random variables', 3: 'Expectation, variance, covariance, correlation and bounds' } },
     { key: 'm2', name: 'Mathematics II', full: 'Mathematics for Data Science II', ic: 'grid', term: 'This term',
       blurb: 'Vectors and matrices, determinants, Cramer’s rule and inverses, row reduction, vector spaces and linear dependence.',
       weeks: { 1: 'Vectors, matrices, linear systems and determinants', 2: 'Determinants, Cramer’s rule and row reduction', 3: 'Vector spaces, linear dependence and independence' } },

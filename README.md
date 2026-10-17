@@ -4,7 +4,7 @@
 
 <p align="center"><b>Revision labs for Statistics, Mathematics and English that fit in your pocket.</b><br>
 In the maths and statistics labs every number is yours and every step is worked out; the English labs hold each lecture’s rules, examples and tricks, with a quick check.<br>
-About 1220 KB in all. It works offline after the first visit, on a phone or a computer.</p>
+About 1320 KB in all. It works offline after the first visit, on a phone or a computer.</p>
 
 <p align="center">
   <img src="docs/phone-light.png" width="250" alt="Choosing a course on an iPhone">
@@ -54,6 +54,7 @@ About 1220 KB in all. It works offline after the first visit, on a phone or a co
 |---|---|
 | 1 | Joint, marginal & conditional (L1.1–L1.3) · Build a joint PMF from pieces (L1.4) · Three or more variables (L1.5–L1.7) |
 | 2 | Independence (L2.1–L2.2) · Function of one random variable (L2.3–L2.5) · Function of two random variables (L2.6–L2.7) · Sums and convolution (L2.8, L2.10) · Maximum and minimum (L2.9, L2.11) |
+| 3 | Expected value (L3.1–L3.3) · Variance and standard deviation (L3.4) · Covariance and correlation (L3.5–L3.6) · Markov and Chebyshev bounds (L3.7) |
 
 **Mathematics II**
 
@@ -95,11 +96,11 @@ serve the folder (`python3 -m http.server`) and open `http://localhost:8000`.
 
 ## How it stays small
 
-- **No framework, no build tools.** The labs and the code they share are written by hand: about 810 KB
+- **No framework, no build tools.** The labs and the code they share are written by hand: about 900 KB
   of JavaScript and CSS over the network.
 - **One library.** KaTeX typesets the maths (330 KB with its fonts); see `THIRD-PARTY-NOTICES`.
 - **System fonts.** Text uses the fonts already on your device, so none are downloaded.
-- **One download.** The first visit stores every file (1220 KB, measured with gzip, as GitHub Pages serves
+- **One download.** The first visit stores every file (1320 KB, measured with gzip, as GitHub Pages serves
   it). After that, opening a lab needs no network at all.
 
 <p align="center">
