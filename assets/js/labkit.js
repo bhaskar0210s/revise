@@ -33,10 +33,13 @@
         const li = Lab.course.labsIndex;   // a site may give one index per course
         const idx = typeof li === 'function' ? li(def) : li != null ? li : 'p/playground';
         el.appendChild(h('a', { class: 'lab-back', href: '#/' + idx, html: Lab.icon('arrowLeft') + '<span>All labs</span>' }));
-        Lab.pageHead(el, ({ s1: 'Statistics I', s2: 'Statistics II', m2: 'Mathematics II' }[def.course] || 'Statistics II') + ' · ' + (def.sub || 'Week ' + def.week), def.title, def.desc);
+        Lab.pageHead(el, ({ s1: 'Statistics I', s2: 'Statistics II', m1: 'Mathematics I', m2: 'Mathematics II', e1: 'English I', e2: 'English II' }[def.course] || 'Statistics II') + ' · ' + (def.sub || 'Week ' + def.week), def.title, def.desc);
         const host = h('div', { class: 'lab-host' });
         el.appendChild(host);
         def.render(host);
+        // labs that build their own controls still get the phone sheet
+        Lab.$$('.pl-lab', host).forEach(K.sheetify);
+        if (host.classList.contains('pl-lab')) K.sheetify(host);
       },
     });
   };
@@ -49,13 +52,29 @@
     if (cls) root.classList.add(cls);
     const side = h('aside', { class: 'pl-controls', 'aria-label': 'Your values' });
     const main = h('div', { class: 'pl-main' });
-    // On phones the controls become a bottom sheet: the results stay in view while the values change.
-    const done = Lab.button('Done', () => root.classList.remove('sheet-open'), 'btn sm');
-    side.appendChild(h('div', { class: 'pl-sheet-bar' }, h('i', { class: 'pl-handle' }), h('b', { text: 'Your values' }), done));
-    const fab = h('button', { class: 'btn primary pl-fab', type: 'button', html: Lab.icon('sliders') + '<span>Change values</span>' });
-    fab.addEventListener('click', () => root.classList.add('sheet-open'));
-    root.append(side, main, fab);
+    root.append(side, main);
+    K.sheetify(root);
     return { side, main };
+  };
+
+  /** On phones the controls (.pl-controls) become a bottom sheet: a "Change values" button opens it and the
+   *  results stay in view while the values change. Works for any .pl-lab root, also one that rebuilds its own
+   *  controls: the sheet's bar (handle, title, Done) is added to whichever .pl-controls exists when it opens. */
+  K.sheetify = function (root) {
+    if (!root || root.querySelector(':scope > .pl-fab')) return;
+    const bar = () => {
+      const done = Lab.button('Done', () => root.classList.remove('sheet-open'), 'btn sm');
+      return h('div', { class: 'pl-sheet-bar' }, h('i', { class: 'pl-handle' }), h('b', { text: 'Your values' }), done);
+    };
+    const fab = h('button', { class: 'btn primary pl-fab', type: 'button', html: Lab.icon('sliders') + '<span>Change values</span>' });
+    fab.addEventListener('click', () => {
+      const side = root.querySelector('.pl-controls');
+      if (side && !side.querySelector('.pl-sheet-bar')) side.prepend(bar());
+      root.classList.add('sheet-open');
+    });
+    root.appendChild(fab);
+    const side = root.querySelector('.pl-controls');
+    if (side && !side.querySelector('.pl-sheet-bar')) side.prepend(bar());
   };
   K.group = text => h('div', { class: 'pl-group-title', text });
   /** Small paragraph that may hold LaTeX. */

@@ -284,10 +284,11 @@ input[type="range"].slider.pl-range { width: auto; flex: 1; min-width: 0; }
 @media (pointer: coarse) {
   input, select, textarea { font-size: 16px !important; }
   /* 44 px targets (Apple's minimum) for everything a finger presses: buttons, chips, pickers, menus, inputs */
-  .btn, .btn.sm, .btn.xs { min-height: 44px; }
+  .btn, .btn.sm, .btn.xs { min-height: 44px !important; height: auto !important; }
   .pl-sheet-bar .btn { min-height: 44px; padding: 0 18px; }
-  .seg button, .pl-lab .pl-controls .seg button { min-height: 44px; }
+  .seg button, .pl-lab .pl-controls .seg button { min-height: 44px !important; }
   select.field, input.field, .pl-lab input[type="text"], .pl-lab input[type="number"] { min-height: 44px; }
   .pl-lab .icon-btn { width: 44px; height: 44px; }
+  .bd-item { min-height: 44px; }
   input[type="range"].slider { height: 32px; }
 }

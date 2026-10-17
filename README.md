@@ -2,9 +2,9 @@
 
 <h1 align="center">Revise</h1>
 
-<p align="center"><b>Labs for Statistics II and Mathematics II that fit in your pocket.</b><br>
-Type your own numbers and every table, chart and step updates, with each number worked out.<br>
-About 850 KB in all. It works offline after the first visit, on a phone or a computer.</p>
+<p align="center"><b>Revision labs for Statistics, Mathematics and English that fit in your pocket.</b><br>
+In the maths and statistics labs every number is yours and every step is worked out; the English labs hold each lecture’s rules, examples and tricks, with a quick check.<br>
+About 1220 KB in all. It works offline after the first visit, on a phone or a computer.</p>
 
 <p align="center">
   <img src="docs/phone-light.png" width="250" alt="Choosing a course on an iPhone">
@@ -16,18 +16,37 @@ About 850 KB in all. It works offline after the first visit, on a phone or a com
 
 ## What it does
 
-- **Pick your course first.** The first page asks: Statistics II or Mathematics II. The site remembers your
-  choice, and the sidebar shows only that course's weeks.
+- **Pick your course first.** Statistics I and II, Mathematics I and II, English I and II. The site remembers
+  your choice, and the sidebar shows only that course's weeks.
 - **Every value is yours.** Change a table cell, a probability, a distribution or a matrix entry, and every
   table, chart and formula redraws at once.
 - **No number without its origin.** Each sum, product and division is written out with your numbers, step by
   step, so you can see where every result comes from.
 - **The lecture's examples are built in.** Load one with a tap, check it against the video, then change it.
   Lecture numbers (L1.3, L2.8, …) follow the course videos.
+- **English, revision first.** Each lecture becomes one page: the points to remember, the rules with the
+  lecture's own examples, tricks to remember them, and "Spot it": decide which rule a sentence shows, then read why.
 - **Made for the phone.** On a small screen the values open in a sheet from the bottom, so the results stay in
   view while you change them. Light and dark mode follow your device; text size and page width are in Settings.
 
 ## The labs
+
+**Statistics I**
+
+| Week | Labs |
+|---|---|
+| 1 | Data types and scales |
+| 2 | Categorical data and charts |
+| 3 | Describe a dataset · Frequency tables and histogram |
+| 4 | Two categorical variables · Scatter, covariance and correlation |
+| 5 | Counting · Arrangements |
+| 6 | Combinations in practice |
+| 7 | Events and Venn |
+| 8 | Conditional probability and Bayes |
+| 9 | Random variable, PMF and CDF |
+| 10 | Expectation and variance |
+| 11 | Binomial, hypergeometric and Poisson |
+| 12 | Continuous distributions and the normal |
 
 **Statistics II**
 
@@ -76,11 +95,11 @@ serve the folder (`python3 -m http.server`) and open `http://localhost:8000`.
 
 ## How it stays small
 
-- **No framework, no build tools.** The labs and the code they share are written by hand: about 430 KB
+- **No framework, no build tools.** The labs and the code they share are written by hand: about 810 KB
   of JavaScript and CSS over the network.
 - **One library.** KaTeX typesets the maths (330 KB with its fonts); see `THIRD-PARTY-NOTICES`.
 - **System fonts.** Text uses the fonts already on your device, so none are downloaded.
-- **One download.** The first visit stores every file (850 KB, measured with gzip, as GitHub Pages serves
+- **One download.** The first visit stores every file (1220 KB, measured with gzip, as GitHub Pages serves
   it). After that, opening a lab needs no network at all.
 
 <p align="center">

@@ -1,0 +1,37 @@
+/* Revision labs (revkit.js): one reading column of cards; the quiz buttons wrap on phones. */
+.rv-rev { max-width: var(--measure); margin: 0 auto; display: grid; gap: 18px; }
+.rv-sec .card-title { margin-bottom: 4px; }
+.rv-sub { margin: 0 0 14px; color: var(--ink-3); font-size: 14.5px; }
+.rv-minute { margin: 0; padding-left: 22px; display: grid; gap: 8px; font-size: 16.5px; line-height: 1.5; }
+.rv-minute li::marker { color: var(--accent); font-weight: 700; }
+.rv-rules { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
+.rv-rule { padding: 16px 18px; border-radius: var(--r-lg, 14px); background: var(--bg-sunk); border: 1px solid var(--line); min-width: 0; }
+.rv-rule h3 { margin: 0 0 6px; font-family: var(--font-serif); font-size: 20px; font-weight: 600; }
+.rv-def { margin: 0 0 10px; color: var(--ink-2); line-height: 1.5; }
+.rv-ex { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.rv-ex q { quotes: '“' '”'; color: var(--ink); }
+.rv-note { display: block; color: var(--ink-3); font-size: 13.5px; margin-top: 2px; }
+.rv-at a { color: var(--accent-ink); }
+.rv-tip { margin: 10px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); color: var(--ink); font-size: 14.5px; line-height: 1.45; }
+.rv-tips { margin: 0; padding-left: 20px; display: grid; gap: 8px; line-height: 1.5; }
+.rv-spot { display: grid; gap: 12px; }
+.rv-prog { font-size: 13px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+.rv-q { margin: 0; padding: 14px 18px; border-left: 3px solid var(--accent); background: var(--bg-sunk); border-radius: 0 12px 12px 0; font-size: 18px; line-height: 1.5; font-family: var(--font-serif); }
+.rv-ask { margin: 8px 0 0; color: var(--ink-2); }
+.rv-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.rv-opt.good { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+.rv-opt.bad { background: var(--bad-soft, #fde8e8); color: var(--bad, #b42318); border-color: var(--bad, #b42318); }
+.rv-opt[disabled] { opacity: 1; cursor: default; }
+.rv-opt[disabled]:not(.good):not(.bad) { opacity: .55; }
+.rv-fb { padding: 12px 14px; border-radius: 12px; background: var(--bg-sunk); line-height: 1.5; }
+.rv-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.rv-done { margin: 0; font-size: 16.5px; }
+.rv-own { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+.rv-own h3 { margin: 0; font-size: 16px; }
+.rv-ta { width: 100%; resize: vertical; font: inherit; }
+.rv-own-out ul { margin: 0; padding-left: 20px; }
+.rv-src { color: var(--ink-3); font-size: 13.5px; margin: 0; }
+@media (max-width: 560px) {
+  .rv-rule { padding: 14px; }
+  .rv-q { font-size: 17px; padding: 12px 14px; }
+}

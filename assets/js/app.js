@@ -163,7 +163,7 @@
       });
     });
     const s1 = (Lab.labs || []).filter(l => l.course === 's1').sort((a, b) => (a.week - b.week) || ((a.order || 0) - (b.order || 0)));
-    if (s1.length) section('sk:s1labs', 'Statistics I · labs (Weeks 1–12)', s1.map(l => pageItem(l.id, 'flask', 'W' + l.week + ' · ' + l.title, 'Lab · type your own values', null)), true);
+    if (s1.length && !Lab.course.labSections) section('sk:s1labs', 'Statistics I · labs (Weeks 1–12)', s1.map(l => pageItem(l.id, 'flask', 'W' + l.week + ' · ' + l.title, 'Lab · type your own values', null)), true);
     if (Lab.course.soon) nav.appendChild(h('div', { class: 'nav-soon', text: Lab.course.soon }));
     side.appendChild(nav);
     side.appendChild(h('div', { class: 'side-foot', html: Lab.course.foot || 'Watch the lecture first, then try it here with your own numbers.' }));
