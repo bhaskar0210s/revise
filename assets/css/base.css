@@ -366,3 +366,13 @@ html[data-width="full"] .home { max-width: 1320px; }
   .sk-item { min-height: 44px; }
 }
 @media (pointer: coarse) and (max-height: 500px) { .pin-btn { display: none !important; } }
+
+/* ------------------------------------------------ one scroll bar: the page's */
+/* Boxes inside a page never show a scroll bar of their own (a wide formula or table still slides sideways inside its
+   box on a phone; the fade at the right edge says there is more). oneScroll() in app.js marks every box that scrolls:
+   "x" scrolls sideways only, never up and down; "y" was a capped list and grows to its full length. */
+#view *, .dock-body * { scrollbar-width: none; }
+#view *::-webkit-scrollbar, .dock-body *::-webkit-scrollbar { display: none; }
+[data-one-scroll] { max-height: none !important; }
+[data-one-scroll="x"] { overflow-y: hidden !important; }
+[data-one-scroll="y"] { overflow-y: visible !important; }

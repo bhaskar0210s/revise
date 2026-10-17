@@ -64,7 +64,8 @@
   const vp = v => (ex(v) ? v.toString() : Lab.fmtDec(Number(v), 4)).replace(/^-/, '−');
   function listTex(vals, max = 10) {
     const t = vals.map(tx);
-    return t.length <= max ? t.join(',\\ ') : t.slice(0, max - 3).join(',\\ ') + ',\\ \\dots,\\ ' + t.slice(-2).join(',\\ ');
+    // \allowbreak: a long list may wrap onto the next line on a narrow screen
+    return t.length <= max ? t.join(',\\allowbreak\\ ') : t.slice(0, max - 3).join(',\\allowbreak\\ ') + ',\\allowbreak\\ \\dots,\\allowbreak\\ ' + t.slice(-2).join(',\\allowbreak\\ ');
   }
   function niceStep(x) {
     const p = Math.pow(10, Math.floor(Math.log10(x)));

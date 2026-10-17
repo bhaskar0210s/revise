@@ -507,6 +507,45 @@
   document.addEventListener('scroll', e => { const t = e.target; if (t && t.matches && t.matches(SCROLLERS)) markOne(t); }, true);
   window.addEventListener('resize', markAll);
 
+  /* ------------------------------------------------ one scroll bar: the page's */
+  // Nothing inside a page scrolls up and down. A box with a few pixels of vertical overflow (tall math in an option,
+  // a solution) would catch the trackpad and stop the page, and lists capped with max-height hide their end, so every
+  // box that scrolls is marked: data-one-scroll="x" (it scrolls sideways: keep that, never up and down) or "y" (a
+  // capped list: let it grow). base.css turns the marks into styles and hides the scroll bars of boxes inside a page.
+  // Labs redraw all the time, so new elements are checked as they arrive. Panes keep their own scrolling: the
+  // sidebar, the pinned dock, a lab's controls column or phone sheet, and form fields.
+  (function oneScroll() {
+    const roots = ['view', 'dock'].map(id => document.getElementById(id)).filter(Boolean);
+    const scrolls = v => v === 'auto' || v === 'scroll';
+    const pane = '.dock-body, .pl-controls, textarea, select, input';
+    function check(el) {
+      if (el.hasAttribute('data-one-scroll') || el.matches(pane)) return;
+      const cs = getComputedStyle(el);
+      const x = scrolls(cs.overflowX), y = scrolls(cs.overflowY);
+      if (!x && !y) return;
+      if (cs.position === 'fixed' || cs.position === 'sticky') return;
+      el.setAttribute('data-one-scroll', x ? 'x' : 'y');
+    }
+    // KaTeX output and drawings never scroll; skip their insides (most of the nodes on a page)
+    const inert = el => el.matches('.katex, svg');
+    function scan(node) {
+      if (node.nodeType !== 1 || !node.isConnected || inert(node)) return;
+      check(node);
+      const walk = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT, { acceptNode: n => (inert(n) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) check(n);
+    }
+    const pending = new Set();
+    let frame = 0;
+    const flush = () => { frame = 0; pending.forEach(scan); pending.clear(); };
+    const observer = new MutationObserver(list => {
+      list.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) pending.add(n); }));
+      if (pending.size && !frame) frame = requestAnimationFrame(flush);
+    });
+    roots.forEach(r => { observer.observe(r, { childList: true, subtree: true }); scan(r); });
+    // a box can start scrolling at another width (phone rules in the style sheets)
+    window.addEventListener('resize', Lab.debounce(() => roots.forEach(scan), 250));
+  })();
+
   /* ------------------------------------------------------- pin to the side */
   // Any lesson card or lab panel can be pinned: it moves (live, still interactive) into a column on the right
   // that stays in view while the page scrolls. A dashed placeholder keeps its place; Unpin puts it back.
