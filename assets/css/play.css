@@ -261,6 +261,9 @@ input[type="range"].slider.pl-range { width: auto; flex: 1; min-width: 0; }
   .pl-fab svg { width: 18px; height: 18px; }
   .pl-lab.sheet-open .pl-fab { display: none; }
   .pl-main { padding-bottom: 96px; }
+  /* with the Previous / Next pager after the lab, the room for the floating button goes under the pager instead */
+  .lab-page > .pl-lab:not(:last-child) .pl-main { padding-bottom: 0; }
+  .lab-page > .lesson-pager { margin-bottom: calc(24px + env(safe-area-inset-bottom)); }
   .lab-page .pin-btn { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .pl-controls { transition: none; } }

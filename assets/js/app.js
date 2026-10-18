@@ -178,7 +178,10 @@
     Lab.$$('.nav-lesson').forEach(a => a.classList.toggle('active', r.type === 'lesson' && a.dataset.id === r.id));
     Lab.$$('.nav-page').forEach(a => a.classList.toggle('active', r.type === 'page' && a.dataset.page === r.id));
     Lab.$$('.side-link').forEach(a => a.classList.toggle('active', (r.type === 'home' && a.dataset.key === 'home') || (r.type === 'page' && (a.dataset.key === 'p:' + r.id || (pages[r.id] && pages[r.id].parent && a.dataset.key === 'p:' + pages[r.id].parent)))));
-    const act = $('.nav-lesson.active') || $('.nav-page.active');
+    const items = sideItems();
+    const k = r.type === 'home' ? -1 : sideIndex(items, '#/' + (r.type === 'lesson' ? 'l/' : 'p/') + r.id);
+    if (k >= 0) { sideAt = k; items.forEach((a, i) => { if (i !== k) a.classList.remove('active'); }); }
+    const act = (k >= 0 && items[k]) || $('.nav-lesson.active') || $('.nav-page.active');
     if (act) { const unit = act.closest('.unit'); if (unit) unit.classList.remove('collapsed'); if (!markActive.done) { markActive.done = true; setTimeout(() => act.scrollIntoView({ block: 'nearest' }), 50); } }
   }
   Lab.on('progress', () => { buildSidebar(); });
@@ -410,6 +413,8 @@
       if (scroll) requestAnimationFrame(() => end.scrollIntoView({ behavior: Lab.reducedMotion() ? 'auto' : 'smooth', block: 'center' }));
     }
     function pager(prevId, nextId) {
+      const side = sidePager('#/l/' + L.id);
+      if (side) return side;
       const nav = h('nav', { class: 'lesson-pager' });
       nav.appendChild(prevId ? h('a', { class: 'pager-link', href: '#/l/' + prevId }, h('div', { class: 'dir', text: '← Previous' }), h('div', { class: 't', text: lessons[prevId].code + ' · ' + lessons[prevId].title })) : h('span'));
       nav.appendChild(nextId ? h('a', { class: 'pager-link next', href: '#/l/' + nextId }, h('div', { class: 'dir', text: 'Next →' }), h('div', { class: 't', text: lessons[nextId].code + ' · ' + lessons[nextId].title })) : h('span'));
@@ -454,7 +459,48 @@
     const page = h('div', { class: 'page' });
     view.appendChild(page);
     try { P.render(page); } catch (e) { console.error(e); page.appendChild(h('div', { class: 'callout warn', text: 'This page failed to load: ' + e.message })); }
+    const side = sidePager('#/p/' + P.id);
+    if (side) page.appendChild(side);
     Lab.renderMath(page);
+  }
+
+  /* ------------------------------------------- previous / next: the sidebar's order */
+  // "Next" is the item after this page in the sidebar (lessons, activity, tutorial and practice sets, labs), so the
+  // pager walks the course in the order the sidebar lists it. Items that leave the site (videos, PDFs) are skipped.
+  // A lab that covers several weeks is listed once per week: the copy the reader came from (a sidebar click, a pager
+  // link, else the copy nearest the last position) gives the neighbours, and only that copy is highlighted.
+  let sideAt = -1;
+  const sideItems = () => Lab.$$('#sidebar .sk-item').filter(a => (a.getAttribute('href') || '').startsWith('#/'));
+  function sideIndex(items, href) {
+    const at = [];
+    items.forEach((a, i) => { if (a.getAttribute('href') === href) at.push(i); });
+    if (!at.length) return -1;
+    if (at.includes(sideAt)) return sideAt;
+    return sideAt < 0 ? at[0] : at.reduce((best, i) => (Math.abs(i - sideAt) < Math.abs(best - sideAt) ? i : best));
+  }
+  function sidePager(href) {
+    const items = sideItems();
+    const k = sideIndex(items, href);
+    if (k < 0) return null;
+    sideAt = k;
+    const link = (i, next) => {
+      const a = items[i];
+      if (!a) return h('span');
+      return h('a', { class: 'pager-link' + (next ? ' next' : ''), href: a.getAttribute('href'), dataset: { side: String(i) } },
+        h('div', { class: 'dir', text: next ? 'Next →' : '← Previous' }), h('div', { class: 't', text: ((a.querySelector('.sk-title') || a).textContent || '').trim() }));
+    };
+    return h('nav', { class: 'lesson-pager', 'aria-label': 'Previous and next in the sidebar' }, link(k - 1, false), link(k + 1, true));
+  }
+  /** A click on a sidebar item or a pager link: remember which sidebar copy it was. Clicking another copy of the open
+   *  page changes no route, so the pager and the highlight are redone in place. */
+  function noteSide(e) {
+    const a = e.target.closest && e.target.closest('#sidebar .sk-item, .lesson-pager a[data-side]');
+    if (!a || !(a.getAttribute('href') || '').startsWith('#/')) return;   // a video or PDF opens elsewhere: keep the place
+    sideAt = a.dataset.side != null ? +a.dataset.side : sideItems().indexOf(a);
+    if (a.getAttribute('href') !== location.hash) return;
+    const old = $('#view .lesson-pager'), nu = old && sidePager(location.hash);
+    if (nu) old.replaceWith(nu);
+    markActive();
   }
   /** Standard page header */
   Lab.pageHead = function (el, eyebrow, title, lede) {
@@ -673,6 +719,7 @@
     $('#side-hot').addEventListener('mouseenter', () => { clearTimeout(peekT); document.body.classList.add('side-peek'); });
     $('#sidebar').addEventListener('mouseenter', () => clearTimeout(peekT));
     $('#sidebar').addEventListener('mouseleave', () => { peekT = setTimeout(() => document.body.classList.remove('side-peek'), 300); });
+    document.addEventListener('click', noteSide, true);
     window.addEventListener('hashchange', route);
     route();
     document.documentElement.classList.add('booted');
