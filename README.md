@@ -2,70 +2,34 @@
 
 <h1 align="center">Revise</h1>
 
-<p align="center"><b>Revision labs for Statistics, Mathematics and English that fit in your pocket.</b><br>
-In the maths and statistics labs every number is yours and every step is worked out; the English labs hold each lecture’s rules, examples and tricks, with a quick check.<br>
-About 1320 KB in all. It works offline after the first visit, on a phone or a computer.</p>
-
-<p align="center">
-  <img src="docs/phone-light.png" width="250" alt="Choosing a course on an iPhone">
-  <img src="docs/phone-values.png" width="250" alt="Changing the values of a lab on an iPhone">
-  <img src="docs/phone-dark.png" width="250" alt="The results of a lab in dark mode">
-</p>
+<p align="center"><b>Week-by-week revision for Statistics, Mathematics, English and Python, on your phone.</b><br>
+Every topic of every lecture, explained from the basics with every step written out. Labs to play with the ideas,
+and every formula in one place. It works offline after the first visit.</p>
 
 <p align="center"><b>Open it: <a href="https://bhaskar0210s.github.io/revise/">bhaskar0210s.github.io/revise</a></b></p>
 
-## What it does
+<p align="center">
+  <img src="docs/phone-light.png" width="250" alt="Choosing a course on an iPhone">
+  <img src="docs/phone-week.png" width="250" alt="A definition and a formula on a week page">
+  <img src="docs/phone-dark.png" width="250" alt="The binomial distribution in the coin lab, in dark mode">
+</p>
 
-- **Pick your course first.** Statistics I and II, Mathematics I and II, English I and II. The site remembers
-  your choice, and the sidebar shows only that course's weeks.
-- **Every value is yours.** Change a table cell, a probability, a distribution or a matrix entry, and every
-  table, chart and formula redraws at once.
-- **No number without its origin.** Each sum, product and division is written out with your numbers, step by
-  step, so you can see where every result comes from.
-- **The lecture's examples are built in.** Load one with a tap, check it against the video, then change it.
-  Lecture numbers (L1.3, L2.8, …) follow the course videos.
-- **English, revision first.** Each lecture becomes one page: the points to remember, the rules with the
-  lecture's own examples, tricks to remember them, and "Spot it": decide which rule a sentence shows, then read why.
-- **Made for the phone.** On a small screen the values open in a sheet from the bottom, so the results stay in
-  view while you change them. Light and dark mode follow your device; text size and page width are in Settings.
+## What is inside
 
-## The labs
-
-**Statistics I**
-
-| Week | Labs |
-|---|---|
-| 1 | Data types and scales |
-| 2 | Categorical data and charts |
-| 3 | Describe a dataset · Frequency tables and histogram |
-| 4 | Two categorical variables · Scatter, covariance and correlation |
-| 5 | Counting · Arrangements |
-| 6 | Combinations in practice |
-| 7 | Events and Venn |
-| 8 | Conditional probability and Bayes |
-| 9 | Random variable, PMF and CDF |
-| 10 | Expectation and variance |
-| 11 | Binomial, hypergeometric and Poisson |
-| 12 | Continuous distributions and the normal |
-
-**Statistics II**
-
-| Week | Labs |
-|---|---|
-| 1 | Joint, marginal & conditional (L1.1–L1.3) · Build a joint PMF from pieces (L1.4) · Three or more variables (L1.5–L1.7) |
-| 2 | Independence (L2.1–L2.2) · Function of one random variable (L2.3–L2.5) · Function of two random variables (L2.6–L2.7) · Sums and convolution (L2.8, L2.10) · Maximum and minimum (L2.9, L2.11) |
-| 3 | Expected value (L3.1–L3.3) · Variance and standard deviation (L3.4) · Covariance and correlation (L3.5–L3.6) · Markov and Chebyshev bounds (L3.7) |
-
-**Mathematics II**
-
-| Week | Labs |
-|---|---|
-| 1 | Matrix · Vectors and vector spaces (L1.1, L3.1–L3.2) · Row reduction |
-| 2 | Cramer's rule and inverse |
-| 3 | Linear dependence |
+- **Seven courses**: Statistics 1 and 2, Mathematics 1 and 2, English 1 and 2, and Python. Each has a page for
+  every week and an **All weeks** page that revises the whole course.
+- **A week page** covers every lecture of that week: the idea from the basics, definitions, formulas with every
+  symbol explained, the lecture's own worked examples with each step, common mistakes, tricks to remember, and
+  "check yourself" questions with full answers. Each lecture is linked at the minute where a topic starts.
+- **Labs**: coins and dice for probability and statistics; sets, functions and calculus, graph algorithms, matrices
+  and vectors, and functions of two variables for mathematics. Change any value and every step is worked out again.
+  Week pages open a lab on the right topic with the right numbers.
+- **Formulas**: every formula of every week, searchable, each linked back to where it is explained.
+- **Made for the phone**: light and dark mode, adjustable text size, a contents sheet on long pages, and "mark as
+  revised" to keep track of your weeks.
 
 <p align="center">
-  <img src="docs/desktop-light.png" width="860" alt="The Statistics II labs on a computer">
+  <img src="docs/desktop-light.png" width="860" alt="Dijkstra's algorithm on a Mathematics 1 week page, on a computer">
 </p>
 
 ## Put it on your iPhone
@@ -73,36 +37,20 @@ About 1320 KB in all. It works offline after the first visit, on a phone or a co
 1. Open [bhaskar0210s.github.io/revise](https://bhaskar0210s.github.io/revise/) in Safari.
 2. Tap the Share button, then **Add to Home Screen**.
 
-It opens full screen, like an app. After the first visit it works without a network, so you can revise
-anywhere. When the site changes, your phone fetches the new version once, on the next visit.
+It opens full screen, like an app, and works without a network after the first visit.
 
 ## Private by design
 
 - No accounts, no cookies, no analytics, no ads. The site loads nothing from other servers.
-- The values you type stay in your browser (local storage), so each lab opens the way you left it.
+- Your "revised" marks and settings stay in your browser.
 - Free and open source under the MIT License.
 
-## Run it yourself
+## How it is made
 
-There is no build step: the site is plain HTML, CSS and JavaScript.
-
-```sh
-git clone https://github.com/bhaskar0210s/revise.git
-open revise/index.html
-```
-
-`index.html` works straight from the disk. The offline cache runs only over https or on `localhost`; to try it,
-serve the folder (`python3 -m http.server`) and open `http://localhost:8000`.
-
-## How it stays small
-
-- **No framework, no build tools.** The labs and the code they share are written by hand: about 900 KB
-  of JavaScript and CSS over the network.
-- **One library.** KaTeX typesets the maths (330 KB with its fonts); see `THIRD-PARTY-NOTICES`.
-- **System fonts.** Text uses the fonts already on your device, so none are downloaded.
-- **One download.** The first visit stores every file (1320 KB, measured with gzip, as GitHub Pages serves
-  it). After that, opening a lab needs no network at all.
+The pages are written in Markdown with LaTeX and typeset with KaTeX when the site is built, so a phone only has to
+show finished HTML. The labs are plain JavaScript with exact fractions. There is no framework and no tracking; the
+whole site is a set of static files.
 
 <p align="center">
-  <img src="docs/desktop-dark.png" width="860" alt="The sums and convolution lab in dark mode">
+  <img src="docs/desktop-dark.png" width="860" alt="Dijkstra's algorithm step by step in the graph lab, in dark mode">
 </p>

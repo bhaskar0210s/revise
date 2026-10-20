@@ -4,88 +4,44 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Revise</title>
-  <meta name="description" content="Labs for Statistics II and Mathematics II. Type your own values and every table, chart and step updates, with each number worked out.">
-  <meta name="theme-color" content="#f5f5f2" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0e0f12" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="Week-by-week revision for Statistics, Mathematics, English and Python, with labs and a formula sheet. Works on a phone, offline.">
+  <meta name="theme-color" content="#f6f6f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#101114" media="(prefers-color-scheme: dark)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Revise">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icons/icon-180.png">
-  <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-  <link rel="stylesheet" href="assets/css/base.css">
-  <link rel="stylesheet" href="assets/css/ui.css">
-  <link rel="stylesheet" href="assets/css/widgets.css">
-  <link rel="stylesheet" href="assets/css/ext-w1b.css">
-  <link rel="stylesheet" href="assets/css/ext-w2a.css">
-  <link rel="stylesheet" href="assets/css/ext-w2c.css">
-  <link rel="stylesheet" href="assets/css/play.css">
-  <link rel="stylesheet" href="assets/css/rev.css">
-  <link rel="stylesheet" href="assets/css/labs/t1.css">
-  <link rel="stylesheet" href="assets/css/labs/t2.css">
-  <link rel="stylesheet" href="assets/css/labs/t3.css">
-  <link rel="stylesheet" href="assets/css/labs/t4a.css">
-  <link rel="stylesheet" href="assets/css/labs/t4b.css">
-  <link rel="stylesheet" href="assets/css/labs/s1.css">
-  <link rel="stylesheet" href="assets/css/labs/s2.css">
-  <link rel="stylesheet" href="assets/css/labs/s3.css">
-  <link rel="stylesheet" href="assets/css/labs/s4.css">
-  <link rel="stylesheet" href="assets/css/labs/s5.css">
-  <link rel="stylesheet" href="assets/css/labs/s6.css">
-  <link rel="stylesheet" href="assets/css/labs/s7.css">
-  <link rel="stylesheet" href="assets/css/labs/w3-bounds.css">
-  <link rel="stylesheet" href="assets/css/labs/w3-cov.css">
-  <link rel="stylesheet" href="assets/css/labs/w3-expect.css">
-  <link rel="stylesheet" href="assets/css/labs/w3-var.css">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="app.css">
   <script>
-    // apply the saved theme, text size, page width and sidebar state before first paint
+    // saved theme and text size before the first paint
     try {
-      var s = JSON.parse(localStorage.getItem('statslab.v1')) || {}, d = document.documentElement;
+      var s = JSON.parse(localStorage.getItem('revise.v1')) || {}, d = document.documentElement;
       if (s.theme && s.theme !== 'auto') d.setAttribute('data-theme', s.theme);
-      d.setAttribute('data-width', s.width || 'full');
-      if (s.sideHidden) d.setAttribute('data-side', 'hidden');
-      if (s.zoom) d.style.setProperty('--zoom', s.zoom);
-      if (s.dockW) d.style.setProperty('--dock-w', s.dockW + 'px');
+      if (s.size) d.style.setProperty('--size', s.size);
     } catch (e) {}
   </script>
 </head>
 <body>
-  <div class="app">
-    <aside class="sidebar" id="sidebar" aria-label="Labs"></aside>
-    <main class="main">
-      <header class="topbar" id="topbar"></header>
-      <div class="work" id="work">
-        <div id="view" aria-live="polite"></div>
-        <aside class="dock" id="dock" hidden aria-label="Pinned cards"></aside>
-      </div>
-    </main>
-  </div>
-  <div class="side-hot" id="side-hot" aria-hidden="true"></div>
-  <div class="scrim" id="scrim"></div>
-  <noscript><p style="padding:40px;text-align:center">Revise needs JavaScript turned on.</p></noscript>
-
-  <script src="assets/vendor/katex/katex.min.js"></script>
-  <script src="assets/vendor/katex/auto-render.min.js"></script>
-  <script src="assets/js/core.js"></script>
-  <script src="assets/js/components.js"></script>
-  <script src="assets/js/prob.js"></script>
-  <script src="assets/js/draw.js"></script>
-  <script src="assets/js/widgets/joint.js"></script>
-  <script src="assets/js/widgets/sorter.js"></script>
-  <script src="assets/js/widgets/charts.js"></script>
-  <script src="assets/js/widgets/functions.js"></script>
-  <script src="assets/js/widgets/more.js"></script>
-  <script src="assets/js/widgets/ext-w2a.js"></script>
-  <script src="assets/js/widgets/play.js"></script>
-  <script src="assets/js/labkit.js"></script>
-  <script src="assets/js/revkit.js"></script>
-  <script src="assets/js/app.js"></script>
-  <script src="site.js"></script>
+  <header class="bar" id="bar">
+    <a class="bar-back" id="back" href="#/" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></a>
+    <a class="bar-brand" href="#/" aria-label="Revise home"><span class="bar-mark" aria-hidden="true"></span><span class="bar-name">Revise</span></a>
+    <div class="bar-title" id="bar-title"></div>
+    <button class="bar-btn" id="search-btn" type="button" aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+    <button class="bar-btn" id="settings-btn" type="button" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+  </header>
+  <main id="view" tabindex="-1"></main>
+  <div class="sheet-scrim" id="scrim" hidden></div>
+  <noscript><p class="noscript">Revise needs JavaScript turned on.</p></noscript>
+  <script src="vendor/katex/katex.min.js" defer></script>
+  <script src="app.js" defer></script>
+  <script src="data/site.js" defer></script>
+  <script src="labkit.js" defer></script>
   <script>
-    Lab.load();
-    // offline after the first visit (served over https only; a file:// copy works without it)
+    addEventListener('DOMContentLoaded', function () { REV.start(); });
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
       addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
     }

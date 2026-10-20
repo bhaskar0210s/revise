@@ -3,7 +3,8 @@ Revise includes the following third-party material.
 KaTeX 0.16.22
 https://github.com/KaTeX/KaTeX
 
-assets/vendor/katex holds KaTeX, which typesets the maths, and its fonts.
+vendor/katex holds KaTeX, which typesets the maths in the labs, its stylesheet and fonts. The revision pages
+are typeset with KaTeX when the site is built.
 
 The MIT License (MIT)
 

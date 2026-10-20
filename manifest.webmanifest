@@ -1,15 +1,15 @@
 {
   "name": "Revise",
   "short_name": "Revise",
-  "description": "Labs for Statistics II and Mathematics II. Type your own values and see every step.",
+  "description": "Week-by-week revision for Statistics, Mathematics, English and Python, with labs and a formula sheet.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f5f5f2",
-  "theme_color": "#f5f5f2",
+  "background_color": "#f6f6f3",
+  "theme_color": "#f6f6f3",
   "icons": [
-    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
