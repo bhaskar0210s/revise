@@ -16,6 +16,70 @@
   'use strict';
   const K = REV.kit;
   const { h } = K;
+
+  /* Maths a phone can wrap. The kit wraps a chain after =, + or × on a narrow phone, but shows an aligned block, or any
+     formula with a matrix, as one display that can only scroll sideways. flow() gives each row of an aligned block a
+     line of its own (a row that goes on with + or − joins the line before; one that goes on with = is indented), sets
+     a formula with a matrix inline so that it can break between the matrices, and lets a list break after a comma
+     outside brackets. flowSteps and flowAnswer are K.steps and K.answer with flow() for the maths. */
+  const { flow, flowSteps, flowAnswer } = (() => {
+    const TOK = /\\(?:begin|end)\{[^}]*\}|\\[A-Za-z]+|\\.|[\s\S]/y;
+    const toks = s => { const a = []; for (TOK.lastIndex = 0; TOK.lastIndex < s.length;) a.push(TOK.exec(s)[0]); return a; };
+    const depth = t => (t === '{' || t === '\\left' || t.startsWith('\\begin') ? 1 : t === '}' || t === '\\right' || t.startsWith('\\end') ? -1 : 0);
+    const LEAD = /^(?:\s|~|\\(?:quad|qquad|[,;: ]))+/, BIN = /^(?:[+−-]|\\(?:times|cdot|pm|mp|div)(?![A-Za-z]))/;
+    const REL = /^(?:[=<>]|\\(?:approx|le|leq|ge|geq|ne|neq|equiv|sim|to|Rightarrow|Longrightarrow|longrightarrow|iff|implies)(?![A-Za-z]))/;
+    function lines(src) {
+      const tk = toks(String(src)), out = [];
+      let pre = '', d = 0, i = 0;
+      while (i < tk.length) {
+        let t = tk[i++];
+        if (t !== '\\begin{aligned}' || d) { d += depth(t); pre += t; continue; }
+        if (pre.trim()) out.push(pre.trim());
+        pre = '';
+        const rows = [[]];
+        let cell = '', e = 0;
+        for (; i < tk.length; i++) {
+          t = tk[i];
+          if (!e && t === '\\end{aligned}') { i++; break; }
+          if (!e && t === '\\\\') {                                 // a new row; skip a spacing like \\[4pt]
+            rows[rows.length - 1].push(cell); rows.push([]); cell = '';
+            let k = i + 1;
+            while (k < tk.length && /^\s$/.test(tk[k])) k++;
+            if (tk[k] === '[') { while (k < tk.length && tk[k] !== ']') k++; i = k; }
+            continue;
+          }
+          if (!e && t === '&') { rows[rows.length - 1].push(cell); cell = ''; continue; }
+          e += depth(t);
+          cell += t;
+        }
+        rows[rows.length - 1].push(cell);
+        for (const c of rows) {
+          if (!c.join('').trim()) continue;
+          if (c.length > 2) { for (let k = 0; k < c.length; k += 2) { const p = (c[k] + ' ' + (c[k + 1] || '')).replace(LEAD, '').trim(); if (p) out.push(p); } continue; }
+          const go = c.length === 2 && !c[0].trim() ? c[1].replace(LEAD, '').trim() : null;
+          if (go && BIN.test(go) && out.length) out[out.length - 1] += ' ' + go;
+          else out.push(go && REL.test(go) ? '\\quad ' + go : c.join(' ').trim());
+        }
+        while (i < tk.length && LEAD.test(tk[i])) i++;
+      }
+      if (pre.trim()) out.push(pre.trim());
+      return out.map(line => {
+        let s = '', b = 0, e = 0;
+        for (const t of toks(line)) {
+          if (t === '(' || t === '[') b++; else if (t === ')' || t === ']') b--; else e += depth(t);
+          s += t + (t === ',' && !b && !e ? '\\allowbreak ' : '');
+        }
+        return s;
+      });
+    }
+    // a little room above and below each unbreakable piece, so that tall fractions on wrapped lines do not touch
+    const flow = tex => lines(tex).map(l => '<span class="lk-wrap">' + K.kx('\\displaystyle ' + l, false).replace(/<span class="base">/g, '<span class="base" style="margin: .15em 0">') + '</span>').join('');
+    return {
+      flow,
+      flowSteps: list => h('ol', { class: 'lk-steps' }, list.map(x => h('li', {}, x.text ? h('div', { class: 'lk-step-t', html: K.rich(x.text) }) : null, x.tex ? h('div', { class: 'lk-step-m', html: flow(x.tex) }) : null))),
+      flowAnswer: (label, tex, note) => h('div', { class: 'lk-answer' }, h('div', { class: 'lk-answer-k', html: K.rich(label) }), h('div', { class: 'lk-answer-v', html: flow(tex) }), note ? h('div', { class: 'lk-answer-n', html: K.rich(note) }) : null),
+    };
+  })();
   const MAXN = 12, MAXM = 40, MAXW = 9999, VR = 15;
 
   /* ================================================================== styles (added once) */
@@ -862,7 +926,7 @@
       function draw(G) {
         const X = nm(G), L = layoutFor(G, s.v.at), n = G.n, m = G.m, out = t.out, vi = G.idx.get(s.v.v), dir = G.directed;
         const listN = dir ? m : 2 * m, val = w => (G.weighted ? minus(w) : '1');
-        out.append(K.answer('Space for $n = ' + n + '$ vertices and $m = ' + m + '$ ' + (dir ? 'arrows' : 'edges'),
+        out.append(flowAnswer('Space for $n = ' + n + '$ vertices and $m = ' + m + '$ ' + (dir ? 'arrows' : 'edges'),
           '\\text{matrix: } n^2 = ' + n + '^2 = ' + n * n + ', \\quad \\text{lists: } n + ' + (dir ? 'm' : '2m') + ' = ' + n + ' + ' + listN + ' = ' + (n + listN),
           dir ? 'Each arrow is one entry of the matrix and one entry of a list; the matrix has $n^2$ places whatever $m$ is.' : 'Each edge is two entries of the matrix, at $(i, j)$ and $(j, i)$, and two list entries; the matrix has $n^2$ places whatever $m$ is.'));
         if (G.note) out.append(K.note(G.note));
@@ -903,7 +967,7 @@
         if (dir) readSteps.push({ text: 'Arrows coming <i>in</i> to ' + X.b(vi) + ' are in column ' + X.b(vi) + ' of the matrix: ' + (colN.length ? X.list(colN) : 'none') + '. The lists keep only arrows going out, so finding the arrows into ' + X.b(vi) + ' means searching every list.', tex: '\\text{column } ' + X.t(vi) + ': \\ ' + range(n).map(i => (M[i][vi] ? val(M[i][vi].w).replace('−', '-') : '0')).join(',\\ ') });
         out.append(K.card('Reading the graph back: vertex ' + X.n(vi),
           matTable(G, (i, j) => (M[i][j] ? { h: val(M[i][j].w), c: i === vi || (dir && j === vi) ? 'new' : '' } : { h: '0', c: 'z' + (i === vi || (dir && j === vi) ? ' done' : '') }), { rowCls: i => (i === vi ? 'new' : ''), colCls: j => (dir && j === vi ? 'new' : '') }),
-          K.steps(readSteps)));
+          flowSteps(readSteps)));
         // degrees
         const sumOut = outD.reduce((a, b) => a + b, 0), sumIn = inD.reduce((a, b) => a + b, 0), odd = range(n).filter(i => outD[i] % 2 === 1);
         const degRows = range(n).map(i => (dir ? [G.labels[i], String(outD[i]), String(inD[i])] : [G.labels[i], String(outD[i])]));
@@ -921,7 +985,7 @@
         out.append(K.card(dir ? 'In-degree and out-degree' : 'Degrees',
           K.p(dir ? 'The <b>out-degree</b> of a vertex is the number of arrows leaving it (the 1s in its row); the <b>in-degree</b> is the number of arrows coming in (the 1s in its column).' : 'The <b>degree</b> of a vertex is the number of edges at it: the 1s in its row (or column; the matrix is symmetric), or the length of its list.'),
           tbl(dir ? ['vertex', 'out-degree (row)', 'in-degree (column)'] : ['vertex', 'degree'], degRows, { compact: true }),
-          K.steps(degSteps),
+          flowSteps(degSteps),
           K.note(okDeg ? (dir ? 'Both sums equal $m = ' + m + '$ ✓' : 'The sum is $2m = ' + 2 * m + '$ and the number of odd-degree vertices is even ✓') : 'The degrees do not add up ✗', okDeg ? 'good' : 'warn')));
         // size and time
         out.append(K.card('Which representation, and why',
@@ -963,8 +1027,8 @@
         const X = nm(G), L = layoutFor(G, s.v.at), n = G.n, out = t.out, S = G.idx.get(s.v.src), T = G.idx.get(s.v.to), R = runBFS(G, S, false);
         if (G.note) out.append(K.note(G.note));
         const order = X.path(R.order).replace(/ → /g, ', ');
-        if (R.vis[T]) out.append(K.answer('Fewest ' + (G.directed ? 'arrows' : 'edges') + ' from ' + X.n(S) + ' to ' + X.n(T), X.pathT(pathTo(R.par, T)) + ' \\quad (\\text{level of } ' + X.t(T) + ' = ' + R.lev[T] + ')', 'BFS visits ' + order + '.'));
-        else out.append(K.answer(X.n(T) + ' cannot be reached from ' + X.n(S), '\\text{level}(' + X.t(T) + ') = -1', 'BFS from ' + X.n(S) + ' visits only ' + order + '.'));
+        if (R.vis[T]) out.append(flowAnswer('Fewest ' + (G.directed ? 'arrows' : 'edges') + ' from ' + X.n(S) + ' to ' + X.n(T), X.pathT(pathTo(R.par, T)) + ' \\quad (\\text{level of } ' + X.t(T) + ' = ' + R.lev[T] + ')', 'BFS visits ' + order + '.'));
+        else out.append(flowAnswer(X.n(T) + ' cannot be reached from ' + X.n(S), '\\text{level}(' + X.t(T) + ') = -1', 'BFS from ' + X.n(S) + ' visits only ' + order + '.'));
         if (G.weighted) out.append(K.note('BFS ignores the weights: it counts edges. For weighted shortest paths see Dijkstra (lecture 11.5).'));
         out.append(stepCard(t, 'Step by step: the queue, visited, level and parent', bfsSteps(G, X, R, false), k => bfsView(G, X, L, R, k, false)));
         // the result
@@ -977,7 +1041,7 @@
           const p = pathTo(R.par, T), back = p.slice().reverse();
           const st2 = back.slice(0, -1).map(v => ({ text: X.b(v) + ' was visited from ' + X.b(R.par[v]) + ':', tex: '\\text{parent}(' + X.t(v) + ') = ' + X.t(R.par[v]) }));
           st2.push({ text: X.b(S) + ' has no parent: it is the start. Read the chain backwards:', tex: X.pathT(p) + ' \\quad (' + (p.length - 1) + ' \\text{ edges} = \\text{level}(' + X.t(T) + '))' });
-          out.append(K.card('The path from ' + X.n(S) + ' to ' + X.n(T) + ', by the parents', K.p('Each vertex remembers the vertex it was reached from. Follow the parents from ' + X.b(T) + ' back to ' + X.b(S) + ' (lecture 10.4):'), K.steps(st2)));
+          out.append(K.card('The path from ' + X.n(S) + ' to ' + X.n(T) + ', by the parents', K.p('Each vertex remembers the vertex it was reached from. Follow the parents from ' + X.b(T) + ' back to ' + X.b(S) + ' (lecture 10.4):'), flowSteps(st2)));
         }
         const D = unitDist(G, S), agree = range(n).every(i => (R.lev[i] < 0 ? D[i] === Infinity : D[i] === R.lev[i]));
         out.append(K.card('Check: levels are shortest distances',
@@ -1015,7 +1079,7 @@
         const X = nm(G), L = layoutFor(G, s.v.at), n = G.n, out = t.out, S = G.idx.get(s.v.src), T = G.idx.get(s.v.to), R = runDFS(G, S, false);
         const seen = range(n).filter(i => R.vis[i]), byPre = seen.slice().sort((a, b) => R.pre[a] - R.pre[b]), byPost = seen.slice().sort((a, b) => R.post[a] - R.post[b]);
         if (G.note) out.append(K.note(G.note));
-        out.append(K.answer('DFS from ' + X.n(S) + ' enters the vertices in this order', byPre.map(i => X.t(i)).join(',\\ '), 'It finishes them in the order ' + byPost.map(i => X.n(i)).join(', ') + '. The counter ends at ' + R.last + ' = 2 × ' + seen.length + ' − 1.'));
+        out.append(flowAnswer('DFS from ' + X.n(S) + ' enters the vertices in this order', byPre.map(i => X.t(i)).join(',\\ '), 'It finishes them in the order ' + byPost.map(i => X.n(i)).join(', ') + '. The counter ends at ' + R.last + ' = 2 × ' + seen.length + ' − 1.'));
         out.append(stepCard(t, 'Step by step: the stack, the counter and the tree', dfsSteps(G, X, R, ''), k => dfsView(G, X, L, R, k, '')));
         // the result
         const tE = treeEdges(G, R.par), non = G.edges.map((e, k) => k).filter(k => !tE.has(k) && R.vis[G.edges[k].u] && R.vis[G.edges[k].v]);
@@ -1027,7 +1091,7 @@
         if (R.vis[T] && T !== S) {
           const p = pathTo(R.par, T), D = unitDist(G, S);
           out.append(K.card('The DFS path is not always the shortest',
-            K.steps([
+            flowSteps([
               { text: 'Follow the parents from ' + X.b(T) + ' back to ' + X.b(S) + ': the path DFS found has ' + pl(p.length - 1, 'edge') + '.', tex: X.pathT(p) },
               { text: 'BFS (or Bellman–Ford with every edge counting 1) finds the fewest edges:', tex: '\\text{fewest edges from } ' + X.t(S) + ' \\text{ to } ' + X.t(T) + ' = ' + D[T] },
             ]),
@@ -1036,7 +1100,7 @@
         const nested = range(n).every(v => R.par[v] < 0 || (R.pre[R.par[v]] < R.pre[v] && R.post[v] < R.post[R.par[v]]));
         const okLast = R.last === 2 * seen.length - 1;
         out.append(K.card('Check the numbering',
-          K.steps([
+          flowSteps([
             { text: 'The counter goes up once when DFS enters a vertex and once when it leaves, so ' + seen.length + ' visited vertices use the numbers 0 to $2 \\times ' + seen.length + ' - 1$ (lecture 10.7).', tex: '\\text{last number} = ' + R.last + (okLast ? ' = 2 \\times ' + seen.length + ' - 1' : '') },
             { text: 'A child is entered after its parent and finished before it, so for every tree edge the child’s interval [pre, post] lies inside the parent’s.' },
           ]),
@@ -1075,7 +1139,7 @@
         const comp = R.comp, C = Math.max(...comp) + 1, groups = range(C).map(c => range(n).filter(i => comp[i] === c));
         const tE = treeEdges(G, R.par), non = range(G.m).filter(k => !tE.has(k));
         const B = useB ? R : runBFS(G, 0, true), col = range(n).map(i => B.lev[i] % 2), clash = range(G.m).filter(k => col[G.edges[k].u] === col[G.edges[k].v]);
-        out.append(K.answer(pl(C, 'connected component'), groups.map((g, c) => 'C_{' + c + '} = ' + X.setT(g)).join(',\\quad '),
+        out.append(flowAnswer(pl(C, 'connected component'), groups.map((g, c) => 'C_{' + c + '} = ' + X.setT(g)).join(',\\quad '),
           (non.length ? 'It has cycles: ' + pl(non.length, 'edge') + (non.length === 1 ? ' lies' : ' lie') + ' outside the search trees. ' : 'No cycles: every component is a tree. ') + (clash.length ? 'Two colours are not enough.' : 'Two colours are enough.')));
         out.append(stepCard(t, 'Step by step: ' + (useB ? 'BFS' : 'DFS') + ' again and again, with component numbers', useB ? bfsSteps(G, X, R, true) : dfsSteps(G, X, R, 'comp'), k => (useB ? bfsView(G, X, L, R, k, true) : dfsView(G, X, L, R, k, 'comp'))));
         const lone = groups.filter(g => g.length === 1).map(g => g[0]);
@@ -1087,7 +1151,7 @@
         out.append(K.card('Search trees and cycles',
           drawGraph(G, L, { v: i => 'k' + (comp[i] % 8), e: k => (tE.has(k) ? 'tree' : 'non') }),
           legend([['e', 'tree', 'used by the ' + (useB ? 'BFS' : 'DFS') + ': tree edges'], ['e', 'non', 'not used: non-tree edges']]),
-          K.steps([
+          flowSteps([
             { text: 'A component with $k$ vertices gets a tree with $k - 1$ edges (lecture 10.6: a tree on $k$ vertices has $k - 1$ edges). So the ' + pl(C, 'tree') + ' together have', tex: 'n - c = ' + n + ' - ' + C + ' = ' + nTree + ' \\text{ tree edges}' },
             { text: 'The graph has $m = ' + G.m + '$ edges, so the searches leave out', tex: 'm - (n - c) = ' + G.m + ' - ' + nTree + ' = ' + non.length + ' \\text{ non-tree edges}' },
             ...cyc.map(x => ({ text: 'The non-tree edge ' + X.e(x.e.u, x.e.v) + ' joins two vertices that the tree already joins; tree path plus edge make a cycle:', tex: X.pathT(x.p.concat([x.p[0]])) })),
@@ -1097,7 +1161,7 @@
         let tail;
         if (clash.length) {
           const e = G.edges[clash[0]], p = treePath(B.par, e.u, e.v), len = p.length;
-          tail = [K.steps([
+          tail = [flowSteps([
             { text: 'The edge ' + X.e(e.u, e.v) + ' joins two vertices of the same level, ' + B.lev[e.u] + ', so both ends get the same colour.' },
             { text: 'With the BFS tree path between its ends it makes a cycle with ' + len + ' edges, an odd number:', tex: X.pathT(p.concat([p[0]])) },
             { text: 'Around a cycle the colours must take turns, which needs an even number of edges. An odd cycle can never be coloured with two colours, however you try.' },
@@ -1122,15 +1186,15 @@
         range(n).forEach(i => { if (seen.has(i)) return; const g = range(n).filter(j => j === i || (reach[i][j] && reach[j][i])); g.forEach(j => seen.add(j)); scc.push(g); });
         const sccOf = range(n).map(i => scc.findIndex(g => g.includes(i)));
         out.append(back.length
-          ? K.answer('It has a directed cycle', X.pathT(cycOf(back[0])), 'Found by the back edge ' + X.e(G.edges[back[0]].u, G.edges[back[0]].v) + '. Strongly connected components: ' + scc.map(g => X.set(g)).join(', ') + '.')
-          : K.answer('No directed cycle: the graph is a DAG', '\\text{no back edges}', 'Every strongly connected component is a single vertex.'));
+          ? flowAnswer('It has a directed cycle', X.pathT(cycOf(back[0])), 'Found by the back edge ' + X.e(G.edges[back[0]].u, G.edges[back[0]].v) + '. Strongly connected components: ' + scc.map(g => X.set(g)).join(', ') + '.')
+          : flowAnswer('No directed cycle: the graph is a DAG', '\\text{no back edges}', 'Every strongly connected component is a single vertex.'));
         out.append(stepCard(t, 'Step by step: DFS with pre and post numbers', dfsSteps(G, X, R, 'tree'), k => dfsView(G, X, L, R, k, 'tree')));
         const ecls = { tree: 'tree', forward: 'fwd', back: 'cyc', cross: 'crs' };
         out.append(K.card('Tree edges and the three other kinds',
           drawGraph(G, L, { v: () => 'done', tag: i => prePost(R, i), e: k => ecls[kind[k]] }),
           legend([['e', 'tree', 'tree'], ['e', 'fwd', 'forward'], ['e', 'cyc', 'back'], ['e', 'crs', 'cross']]),
           K.p('Each vertex has an interval [pre, post]: DFS was busy with it from pre to post. For a non-tree arrow $(u, v)$ (lecture 10.7):'),
-          K.steps([
+          flowSteps([
             { text: '<b>Forward</b> edge: it jumps down the tree, so the interval of $u$ contains that of $v$: $\\text{pre}(u) < \\text{pre}(v)$ and $\\text{post}(v) < \\text{post}(u)$.' },
             { text: '<b>Back</b> edge: it goes up to an ancestor, so the interval of $v$ contains that of $u$.' },
             { text: '<b>Cross</b> edge: it goes to a vertex already finished in another branch, so the intervals do not overlap.' },
@@ -1142,7 +1206,7 @@
           }), { compact: true })));
         out.append(K.card('Cycles',
           K.p('A forward or cross edge never closes a cycle; a back edge always does: it returns to an ancestor, and the tree path leads from that ancestor back down (lecture 10.7).'),
-          back.length ? K.steps(back.map(k => ({ text: 'Back edge ' + X.e(G.edges[k].u, G.edges[k].v) + ': the tree path from ' + X.b(G.edges[k].v) + ' down to ' + X.b(G.edges[k].u) + ', then the back edge:', tex: X.pathT(cycOf(k)) }))) : null,
+          back.length ? flowSteps(back.map(k => ({ text: 'Back edge ' + X.e(G.edges[k].u, G.edges[k].v) + ': the tree path from ' + X.b(G.edges[k].v) + ' down to ' + X.b(G.edges[k].u) + ', then the back edge:', tex: X.pathT(cycOf(k)) }))) : null,
           K.note(back.length ? pl(back.length, 'back edge') + ', so the graph has a directed cycle.' : 'No back edges, so no directed cycle: the graph is a DAG ✓', back.length ? '' : 'good')));
         out.append(K.card('Strongly connected components',
           K.p('Two vertices are <b>strongly connected</b> when each can reach the other along the arrows. The graph splits into groups of strongly connected vertices, its <b>strongly connected components</b> (lecture 10.7). The lab finds them from the reachability of each pair (BFS from every vertex).'),
@@ -1178,8 +1242,8 @@
         if (G.note) out.append(K.note(G.note));
         if (R.ok) {
           const N = countOrders(G);
-          out.append(K.answer('A topological order', R.order.map(i => X.t(i)).join(',\\ '), 'Every arrow goes from an earlier vertex to a later one. ' + (N > 1 ? 'It is one of ' + N.toLocaleString('en-IN') + ' possible orders.' : 'It is the only possible order.')));
-        } else out.append(K.answer('No topological order: there is a cycle', X.pathT(R.cyc.cyc), 'Each vertex of a cycle would have to come before itself.'));
+          out.append(flowAnswer('A topological order', R.order.map(i => X.t(i)).join(',\\ '), 'Every arrow goes from an earlier vertex to a later one. ' + (N > 1 ? 'It is one of ' + N.toLocaleString('en-IN') + ' possible orders.' : 'It is the only possible order.')));
+        } else out.append(flowAnswer('No topological order: there is a cycle', X.pathT(R.cyc.cyc), 'Each vertex of a cycle would have to come before itself.'));
         const rule = { small: 'take the smallest', large: 'take the largest', order: 'take the one that comes first in your order' }[s.v.tie];
         const steps = R.steps.map(st => {
           if (st.kind === 'start') return { head: 'Find the in-degrees', text: 'The in-degree of a vertex is the number of arrows coming into it: the number of 1s in its column of the adjacency matrix (lecture 10.10). In-degree 0 means it depends on nothing: ' + (st.avail.length ? X.list(st.avail) : 'none') + '.', tex: '\\text{in-degrees: } ' + range(n).map(i => st.indeg[i]).join(' + ') + ' = ' + G.m + ' = m' };
@@ -1215,7 +1279,7 @@
         out.append(K.card('Check the order',
           K.p('Every arrow must go from an earlier vertex to a later one. Number the vertices by their place in the order:'),
           tbl(['place'].concat(R.order.map((_, i) => String(i + 1))), [['vertex'].concat(R.order.map(i => G.labels[i]))], { compact: true }),
-          K.steps(G.edges.map(e => ({ text: 'Arrow ' + X.n(e.u) + ' → ' + X.n(e.v) + ': place ' + (pos.get(e.u) + 1) + ' before place ' + (pos.get(e.v) + 1) + (pos.get(e.u) < pos.get(e.v) ? OK : NO) }))),
+          flowSteps(G.edges.map(e => ({ text: 'Arrow ' + X.n(e.u) + ' → ' + X.n(e.v) + ': place ' + (pos.get(e.u) + 1) + ' before place ' + (pos.get(e.v) + 1) + (pos.get(e.u) < pos.get(e.v) ? OK : NO) }))),
           K.note(fwd.length === G.m ? 'All ' + G.m + ' arrows point forward ✓' : 'Some arrows point backward ✗', fwd.length === G.m ? 'good' : 'warn'),
           K.p('Other choices at the ties give other orders, all correct (lecture 10.10): for $n$ tasks with no dependencies at all, every one of the $n!$ orders works.')));
       }
@@ -1245,12 +1309,12 @@
         const X = nm(G), L = layoutFor(G, s.v.at), n = G.n, pref = prefOf(G, s.v.ord), R = runTopo(G, s.v.tie, pref), wt = G.weighted;
         if (G.note) out.append(K.note(G.note));
         if (!R.ok) {
-          out.append(K.answer('Not a DAG: there is a cycle', X.pathT(R.cyc.cyc), 'Going round a cycle never ends, so this easy method needs a DAG. For graphs with cycles, the longest path that repeats no vertex is a hard problem: no fast method is known (lecture 11.1).'));
+          out.append(flowAnswer('Not a DAG: there is a cycle', X.pathT(R.cyc.cyc), 'Going round a cycle never ends, so this easy method needs a DAG. For graphs with cycles, the longest path that repeats no vertex is a hard problem: no fast method is known (lecture 11.1).'));
           out.append(K.note('The topological sort gets stuck. See the Topological sort topic for the steps.', 'warn'));
           return;
         }
         const best = Math.max(...R.L), end = range(n).find(i => R.L[i] === best), path = pathTo(R.via, end);
-        out.append(K.answer('The longest path: ' + (wt ? 'length ' + best : pl(best, 'edge')), X.pathT(path) + (wt ? ' \\quad (' + path.slice(1).map((v, i) => pT(G.W[path[i]][v])).join(' + ') + ' = ' + best + ')' : ''),
+        out.append(flowAnswer('The longest path: ' + (wt ? 'length ' + best : pl(best, 'edge')), X.pathT(path) + (wt ? ' \\quad (' + path.slice(1).map((v, i) => pT(G.W[path[i]][v])).join(' + ') + ' = ' + best + ')' : ''),
           wt ? 'The earliest time each task can start is its longest-path value; everything can finish once the last task, ' + X.n(end) + ', starts.' : 'So, doing free tasks together, ' + (best + 1) + ' rounds are needed (in lecture 11.1, semesters).'));
         const lpT = i => '\\text{lp}(' + X.t(i) + ')';
         const steps = R.steps.map(st => {
@@ -1329,7 +1393,7 @@
         if (G.note) out.append(K.note(G.note));
         if (G.weighted) out.append(K.note('Weights play no part here: only whether there is an edge.'));
         if (isAirD(G)) out.append(K.note('The $A^2$ table on the 11.2 slide has slips. Worked out from the slide’s own $A$, row 2 is {1, 4} (the lecturer corrects this aloud), and rows 3, 4, 7, 8 and 9 are {0, 3, 5, 7}, {1, 4, 6, 8}, {0, 3, 5, 7, 9}, {3, 7, 8} and {5, 9}. The lab works every entry out.'));
-        out.append(K.answer('Can ' + X.n(J) + ' be reached from ' + X.n(I) + '?', 'A^+[' + X.t(I) + ', ' + X.t(J) + '] = ' + Ap[I][J],
+        out.append(flowAnswer('Can ' + X.n(J) + ' be reached from ' + X.n(I) + '?', 'A^+[' + X.t(I) + ', ' + X.t(J) + '] = ' + Ap[I][J],
           (Ap[I][J] ? 'Yes: the shortest way has ' + pl(first(I, J), 'arrow') + '. ' : 'No: no power of $A$ has a 1 there. ') + 'In all, $A^+$ has ' + ones(Ap) + ' ones out of $' + n * n + '$: the pairs of $R^+$.'));
         const walk = (l, i, j) => { if (!P[l][i][j]) return null; const p = [j]; let cur = j; for (let m = l; m >= 2; m--) { const k = range(n).find(q => P[m - 1][i][q] && A[q][cur]); p.unshift(k); cur = k; } p.unshift(i); return p; };
         const pairList = list => list.slice(0, 12).map(([i, j]) => X.e(i, j)).join(', ') + (list.length > 12 ? ' and ' + (list.length - 12) + ' more' : '');
@@ -1404,8 +1468,8 @@
         if (!G.weighted) out.append(K.note('No weights: every edge counts 1, so the burn times are the BFS levels.'));
         const pathT = pathTo(R.par, T);
         out.append(R.T[T] === Infinity
-          ? K.answer(X.n(T) + ' never burns', '\\text{EBT}(' + X.t(T) + ') = \\infty', 'No path leads from ' + X.n(S) + ' to ' + X.n(T) + '.')
-          : K.answer('Shortest distance from ' + X.n(S) + ' to ' + X.n(T) + (negE.length ? ', by Dijkstra' : ''), 'd(' + X.t(S) + ', ' + X.t(T) + ') = ' + R.T[T] + ' \\quad \\text{along } ' + X.pathT(pathT), 'Every vertex: ' + range(n).map(i => X.n(i) + ': ' + dH(R.T[i])).join(', ') + '.'));
+          ? flowAnswer(X.n(T) + ' never burns', '\\text{EBT}(' + X.t(T) + ') = \\infty', 'No path leads from ' + X.n(S) + ' to ' + X.n(T) + '.')
+          : flowAnswer('Shortest distance from ' + X.n(S) + ' to ' + X.n(T) + (negE.length ? ', by Dijkstra' : ''), 'd(' + X.t(S) + ', ' + X.t(T) + ') = ' + R.T[T] + ' \\quad \\text{along } ' + X.pathT(pathT), 'Every vertex: ' + range(n).map(i => X.n(i) + ': ' + dH(R.T[i])).join(', ') + '.'));
         if (negE.length) out.append(K.note('This graph has ' + pl(negE.length, 'negative edge') + '. Dijkstra assumes there are none, so its answer may be wrong: see the check at the end.', 'warn'));
         const steps = R.steps.map((st, idx) => {
           if (st.kind === 'start') return { head: 'Start: EBT(' + X.n(S) + ') = 0, every other EBT = ∞', text: 'No vertex is burnt yet: B(i) = False for every vertex, so the set of unburnt vertices UB is all of them. The fire starts at ' + X.b(S) + ' at time 0. For the others nothing is known yet, so their EBT is ∞.', tex: '\\text{EBT}(' + X.t(S) + ') = 0' };
@@ -1475,8 +1539,8 @@
         if (G.note) out.append(K.note(G.note));
         if (!G.directed && G.edges.some(e => e.w < 0)) out.append(K.note('An undirected edge with a negative weight is a negative cycle by itself: go along it and come back.', 'warn'));
         const cw = R.cycle ? R.cycle.slice(1).map((v, i) => G.W[R.cycle[i]][v]) : [];
-        if (R.neg) out.append(K.answer('A negative cycle can be reached from ' + X.n(S), X.pathT(R.cycle) + ' \\quad (' + cw.map(pT).join(' + ') + ' = ' + cw.reduce((a, b) => a + b, 0) + ')', 'Going round it again and again makes paths as short as you like, so shortest distances are not defined (lecture 11.4).'));
-        else out.append(K.answer('Shortest distances from ' + X.n(S), range(n).map(i => 'd(' + X.t(i) + ') = ' + dT(R.D[i])).join(',\\ '), (R.settled && R.settled > 1 ? 'Nothing changes after round ' + (R.settled - 1) + '. ' : '') + 'The check round $n = ' + n + '$ changes nothing: no negative cycle.'));
+        if (R.neg) out.append(flowAnswer('A negative cycle can be reached from ' + X.n(S), X.pathT(R.cycle) + ' \\quad (' + cw.map(pT).join(' + ') + ' = ' + cw.reduce((a, b) => a + b, 0) + ')', 'Going round it again and again makes paths as short as you like, so shortest distances are not defined (lecture 11.4).'));
+        else out.append(flowAnswer('Shortest distances from ' + X.n(S), range(n).map(i => 'd(' + X.t(i) + ') = ' + dT(R.D[i])).join(',\\ '), (R.settled && R.settled > 1 ? 'Nothing changes after round ' + (R.settled - 1) + '. ' : '') + 'The check round $n = ' + n + '$ changes nothing: no negative cycle.'));
         const steps = [{ head: 'Start: D(' + X.n(S) + ') = 0, every other D = ∞', text: 'D(v) is the shortest distance from ' + X.b(S) + ' to v known so far. At the start only the source is known (column 0 of the table).', tex: 'D(' + X.t(S) + ') = 0' }];
         R.rounds.forEach(rd => {
           const check = rd.r === n, ch = rd.changed;
@@ -1514,7 +1578,7 @@
           const cyE = new Set(R.cycle.slice(1).map((v, i) => G.E[R.cycle[i]][v]));
           out.append(K.card('The negative cycle',
             drawGraph(G, L, { v: i => (R.cycle.includes(i) ? 'bad' : ''), e: k => (cyE.has(k) ? 'cyc' : '') }),
-            K.steps([{ text: 'Follow, from a vertex that still dropped in round ' + n + ', the edges that lowered each value, back through the rounds. That walk has $n$ edges, so a vertex repeats; the stretch between is this cycle:', tex: X.pathT(R.cycle) }, { text: 'Its total weight is negative:', tex: cw.map(pT).join(' + ') + ' = ' + cw.reduce((a, b) => a + b, 0) }])));
+            flowSteps([{ text: 'Follow, from a vertex that still dropped in round ' + n + ', the edges that lowered each value, back through the rounds. That walk has $n$ edges, so a vertex repeats; the stretch between is this cycle:', tex: X.pathT(R.cycle) }, { text: 'Its total weight is negative:', tex: cw.map(pT).join(' + ') + ' = ' + cw.reduce((a, b) => a + b, 0) }])));
           return;
         }
         const tE = new Set(); R.par.forEach((p, v) => { if (p >= 0) tE.add(G.E[p][v]); });
@@ -1559,8 +1623,8 @@
         const spT = (t2, i, j) => 'SP^{' + t2 + '}[' + X.t(i) + ', ' + X.t(j) + ']', negD = range(n).filter(i => F[i][i] < 0);
         if (G.note) out.append(K.note(G.note));
         if (!G.weighted) out.append(K.note('No weights: every edge counts 1, so the distances count edges.'));
-        if (negD.length) out.append(K.answer('A negative cycle', spT(n, negD[0], negD[0]) + ' = ' + F[negD[0]][negD[0]] + ' < 0', 'A vertex with a negative diagonal entry lies on a negative cycle: ' + X.list(negD) + '. Distances through them are not defined (lecture 11.4), so the other numbers here mean little.'));
-        else out.append(K.answer('Shortest distance from ' + X.n(I) + ' to ' + X.n(J), spT(n, I, J) + ' = ' + dT(F[I][J]), I === J ? 'On the diagonal: the shortest cycle through ' + X.n(I) + (F[I][I] === Infinity ? ' (∞: none).' : '.') : ''));
+        if (negD.length) out.append(flowAnswer('A negative cycle', spT(n, negD[0], negD[0]) + ' = ' + F[negD[0]][negD[0]] + ' < 0', 'A vertex with a negative diagonal entry lies on a negative cycle: ' + X.list(negD) + '. Distances through them are not defined (lecture 11.4), so the other numbers here mean little.'));
+        else out.append(flowAnswer('Shortest distance from ' + X.n(I) + ' to ' + X.n(J), spT(n, I, J) + ' = ' + dT(F[I][J]), I === J ? 'On the diagonal: the shortest cycle through ' + X.n(I) + (F[I][I] === Infinity ? ' (∞: none).' : '.') : ''));
         const steps = [{ head: 'SP⁰ = W: no stops allowed', text: 'With no vertex allowed in between, the only paths are single edges: $SP^0[i, j] = W[i, j]$, the weight of the edge from $i$ to $j$, and $\\infty$ where there is no edge (also from a vertex to itself, as in the lecture).', tex: spT(0, I, J) + ' = ' + dT(R.mats[0][I][J]) }];
         R.changes.forEach((ch, k) => {
           const P = R.mats[k], N = R.mats[k + 1], allowed = range(k + 1).map(x => G.labels[x]).join(', ');
@@ -1637,8 +1701,8 @@
         if (!G.weighted) out.append(K.note('No weights: every edge costs 1, so every spanning tree costs $n - 1 = ' + (n - 1) + '$.'));
         const best = prim ? P : Kr;
         out.append(best.complete
-          ? K.answer('A minimum cost spanning tree (' + (prim ? 'Prim' : 'Kruskal') + ')', 'TE = \\{' + teT(best.TE) + '\\}, \\quad \\text{cost} = ' + costT(best.TE), (prim ? 'Kruskal' : 'Prim') + ' finds cost ' + (prim ? Kr.cost : P.cost) + ' too.')
-          : K.answer('No spanning tree: the graph is not connected', '\\text{cost of the spanning forest} = ' + Kr.cost, 'Kruskal still joins each component by a tree.'));
+          ? flowAnswer('A minimum cost spanning tree (' + (prim ? 'Prim' : 'Kruskal') + ')', 'TE = \\{' + teT(best.TE) + '\\}, \\quad \\text{cost} = ' + costT(best.TE), (prim ? 'Kruskal' : 'Prim') + ' finds cost ' + (prim ? Kr.cost : P.cost) + ' too.')
+          : flowAnswer('No spanning tree: the graph is not connected', '\\text{cost of the spanning forest} = ' + Kr.cost, 'Kruskal still joins each component by a tree.'));
         const primSteps = P.steps.map(st => {
           if (st.kind === 'start') return { head: 'Start: TV = TE = ∅', text: 'TV will hold the tree vertices and TE the tree edges (lecture 11.9). A vertex being in TV does not mean every edge between tree vertices is in TE.', tex: 'TV = TE = \\varnothing' };
           if (st.kind === 'first') return { head: 'The smallest edge: ' + eTxt(st.e.u, st.e.v, st.e.w), text: 'Start with the smallest edge of the whole graph' + (G.weighted ? '' : ' (all equal: the first one)') + '. On its own it is a tree.', tex: 'TV = ' + X.setT(st.TV) + ',\\ TE = \\{' + teT(st.TE) + '\\},\\ \\text{cost} = ' + st.cost };
@@ -1681,14 +1745,14 @@
         out.append(K.card('Prim and Kruskal compared',
           drawGraph(G, L, { v: () => 'done', e: k => (tE.has(k) ? 'tree' : 'dim') }),
           tbl(['', 'edges in the order added', 'cost'], [['Prim', { h: P.TE.map(e => eOnly(e.a, e.b)).join(', ') || '—', c: 'left' }, String(P.cost)], ['Kruskal', { h: Kr.TE.map(e => eOnly(e.a, e.b)).join(', ') || '—', c: 'left' }, String(Kr.cost)]], { compact: true }),
-          K.steps([
+          flowSteps([
             { text: 'Both trees have $n - 1 = ' + (n - 1) + '$ edges' + (P.complete && Kr.complete ? ', join all ' + n + ' vertices and close no cycle: by lecture 11.8, any two of these three facts make a tree.' : '; this graph is not connected, so neither can join every vertex.') },
             { text: 'Both are right for the same reason, the <b>minimum separator lemma</b> (lectures 11.9, 11.10): split the vertices into two groups; the cheapest edge between the groups belongs to every minimum tree. Prim’s groups are the tree and the rest; Kruskal’s are the component of one end and the rest.' },
           ]),
           K.note(P.complete && Kr.complete && P.cost === Kr.cost ? (sameSet ? 'The same tree and the same cost ✓' : 'Different edges, the same cost ✓ Equal weights allow several minimum trees, and the two algorithms may pick different ones (lecture 11.10).') : P.complete && Kr.complete ? 'The costs differ ✗' : 'No spanning tree: the graph is not connected.', P.complete && Kr.complete && P.cost === Kr.cost ? 'good' : 'warn')));
         const all = allTrees(G, 200000);
         if (all && best.complete) out.append(K.card('Check: every spanning tree',
-          K.steps([
+          flowSteps([
             { text: 'Try every choice of $n - 1 = ' + (n - 1) + '$ edges out of $m = ' + G.m + '$ and keep those that make a tree:', tex: '\\binom{' + G.m + '}{' + (n - 1) + '} = ' + Math.round(all.comb) + ' \\text{ choices}, \\ ' + all.count + ' \\text{ spanning trees}' },
             { text: 'The cheapest of them costs ' + all.best + ', and ' + pl(all.nBest, 'tree') + (all.nBest === 1 ? ' has' : ' have') + ' that cost.' },
           ]),

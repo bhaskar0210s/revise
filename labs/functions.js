@@ -19,6 +19,8 @@
   const par = q => (neg(q) ? '\\mathopen{}\\left(' + T(q) + '\\right)' : T(q));
   /** q² written out: 3^2, (−3)^2, (1/2)^2 */
   const sqp = q => (neg(q) || !q.isInt() ? '\\mathopen{}\\left(' + T(q) + '\\right)^2' : T(q) + '^2');
+  /** brackets of a fixed size around a long expression: unlike \left( … \right), a narrow phone can break the line inside them */
+  const fixedPar = x => (/\\frac/.test(x) ? '\\biggl(' + x + '\\biggr)' : '(' + x + ')');
   /** a term after the first one: " + 3x", " - x", "" */
   const sgn = (q, v = '') => (q.isZero() ? '' : (neg(q) ? ' - ' : ' + ') + (v && fabs(q).eq(1) ? '' : T(fabs(q))) + v);
   /** a coefficient in front of a letter: 1 → "", −1 → "-" */
@@ -1004,7 +1006,7 @@
     if (rr.big) st.push({ text: 'The numbers are too large to try every rational candidate, so the zeros are found numerically.' });
     else if (rr.ints) {
       const a0 = rr.ints[0], aN = rr.ints[rr.ints.length - 1], pos = rr.cands.filter(c => !neg(c));
-      st.push({ text: 'The <b>rational root test</b>: a fraction $\\frac{u}{w}$ in lowest terms can be a zero only if $u$ divides the constant term $' + a0 + '$ and $w$ divides the leading coefficient $' + aN + '$. The candidates:', tex: pos.length <= 16 ? '\\pm ' + pos.map(c => T(c)).join(',\\ \\pm ') : '\\pm ' + pos.slice(0, 12).map(c => T(c)).join(',\\ \\pm ') + ',\\ \\dots\\ (' + rr.cands.length + '\\text{ in all})' });
+      st.push({ text: 'The <b>rational root test</b>: a fraction $\\frac{u}{w}$ in lowest terms can be a zero only if $u$ divides the constant term $' + a0 + '$ and $w$ divides the leading coefficient $' + aN + '$. The candidates:', tex: pos.length <= 16 ? '\\pm ' + pos.map(c => T(c)).join(',\\allowbreak\\ \\pm ') : '\\pm ' + pos.slice(0, 12).map(c => T(c)).join(',\\allowbreak\\ \\pm ') + ',\\allowbreak\\ \\dots\\ (' + rr.cands.length + '\\text{ in all})' });
       const found = rr.roots.filter(o => !o.r.isZero());
       st.push({ text: found.length ? 'Putting each candidate in, these give $0$. Dividing by $(x - r)$ again and again shows how often each one goes in, its <b>multiplicity</b>:' : 'None of the candidates gives $0$: there is no rational zero' + (rr.zero ? ' apart from $0$.' : '.'), tex: found.length ? found.map(o => name + '\\mathopen{}\\left(' + T(o.r) + '\\right) = 0' + (o.m > 1 ? '\\ (\\times ' + o.m + ')' : '')).join(',\\quad ') : null });
     }
@@ -1147,7 +1149,7 @@
         }
         if (mode !== 'general') st.push(L.vertical ? { text: 'As an equation in the <b>general form</b> $Ax + By + C = 0$:', tex: 'x = ' + T(C.neg().div(A)) + ' \\;\\Leftrightarrow\\; ' + gtex(L) } : { text: 'Bring every term to one side and clear fractions: the <b>general form</b> $Ax + By + C = 0$.', tex: gtex(L) });
         st.push({ text: 'Where it crosses the $x$-axis, $y = 0$:', tex: xi ? linTex([[A, 'x'], [C, '']]) + ' = 0 \\;\\Rightarrow\\; x = ' + TD(xi) : '\\text{' + (C.isZero() ? 'the line is the } x\\text{-axis itself' : 'the line is parallel to the } x\\text{-axis: no } x\\text{-intercept') + '}' });
-        st.push({ text: 'Where it crosses the $y$-axis, $x = 0$:', tex: yi ? linTex([[B, 'y'], [C, '']]) + ' = 0 \\;\\Rightarrow\\; y = ' + TD(yi) : '\\text{' + (C.isZero() ? 'the line is the } y\\text{-axis itself' : 'the line is parallel to the } y\\text{-axis: no } y\\text{-intercept') + '}' });
+        st.push({ text: 'Where it crosses the $y$-axis, $x = 0$:', tex: yi ? linTex([[B, 'y'], [C, '']]) + ' = 0 \\;\\Rightarrow\\; y = ' + TD(yi) : '\\text{' + (C.isZero() ? 'the line is the } y\\text{-axis itself' : 'the line is parallel}\\allowbreak\\ \\text{to the } y\\text{-axis:}\\allowbreak\\ \\text{no } y\\text{-intercept') + '}' });
         if (xi && yi && !xi.isZero() && !yi.isZero()) st.push({ text: 'With both intercepts known (and not $0$), the <b>intercept form</b> $\\frac{x}{a} + \\frac{y}{b} = 1$:', tex: '\\frac{x}{' + T(xi) + '} + \\frac{y}{' + T(yi) + '} = 1' });
         const deg = L.vertical ? 90 : ((Math.atan(L.m.num()) * 180) / Math.PI + 180) % 180;
         st.push({ text: 'The <b>angle of inclination</b> $\\theta$ is measured from the positive $x$-axis, with $\\tan\\theta = m$ (lecture 2.5).', tex: L.vertical ? '\\theta = 90^\\circ' : '\\tan\\theta = ' + T(L.m) + ' \\;\\Rightarrow\\; \\theta \\approx ' + fmt(deg, 2) + '^\\circ' });
@@ -1259,7 +1261,7 @@
         out.append(K.card('The parabola', plot({ x: [mid - w, mid + w], items, width: W, label: 'The parabola y = f(x) with its vertex and roots', legend: [{ c: 0, text: '$y = ' + ft + '$' }, { c: 4, dash: true, text: 'axis of symmetry $x = ' + T(hh) + '$' }] })));
 
         // completing the square
-        const ba = b.div(a), st = [], grp = inner => (a.eq(1) ? inner : A + '\\mathopen{}\\left(' + inner + '\\right)');
+        const ba = b.div(a), st = [], grp = inner => (a.eq(1) ? inner : A + fixedPar(inner));
         st.push(a.eq(1) ? { text: 'Here $a = 1$, so the $x$ terms are simply $x^2' + sgn(b, 'x') + '$.' } : { text: 'Take $a = ' + T(a) + '$ out of the two $x$ terms.', tex: 'f(x) = ' + A + '\\mathopen{}\\left(x^2' + sgn(ba, 'x') + '\\right)' + sgn(c) });
         if (b.isZero()) st.push({ text: 'There is no $x$ term ($b = 0$), so $f(x)$ is already in vertex form $a(x - 0)^2 + c$.', tex: 'f(x) = ' + A + 'x^2' + sgn(c) });
         else {
@@ -1385,9 +1387,9 @@
         // expanded form and degree
         const st = [];
         if (given) {
-          st.push({ text: 'Each zero $r$ gives a factor $(x - r)$. Start with the leading coefficient and multiply the factors in, one at a time.', tex: 'p(x) = ' + coef(given.a) + given.rs.map(r => (r.isZero() ? 'x' : '\\mathopen{}\\left(' + xm(r) + '\\right)')).join('') });
+          st.push({ text: 'Each zero $r$ gives a factor $(x - r)$. Start with the leading coefficient and multiply the factors in, one at a time.', tex: 'p(x) = ' + coef(given.a) + given.rs.map(r => (r.isZero() ? 'x' : '\\mathopen{}\\left(' + xm(r) + '\\right)')).join('\\allowbreak ') });
           let acc = [given.a];
-          given.rs.forEach(r => { const prev = acc; acc = pmul(acc, [r.neg(), F(1)]); st.push({ text: 'Multiply by $(' + xm(r) + ')$:', tex: (pdeg(prev) < 1 ? T(prev[0]) : '\\mathopen{}\\left(' + ptex(prev) + '\\right)') + '\\mathopen{}\\left(' + xm(r) + '\\right) = ' + ptex(acc) }); });
+          given.rs.forEach(r => { const prev = acc; acc = pmul(acc, [r.neg(), F(1)]); st.push({ text: 'Multiply by $(' + xm(r) + ')$:', tex: (pdeg(prev) < 1 ? T(prev[0]) : fixedPar(ptex(prev))) + '\\allowbreak\\mathopen{}\\left(' + xm(r) + '\\right) = ' + ptex(acc) }); });
         } else st.push({ text: 'Multiply out any brackets and collect like terms, highest power first:', tex: 'p(x) = ' + pt });
         st.push({ text: 'The <b>degree</b> is the highest power with a nonzero coefficient, and that term $a_nx^n$ is the <b>leading term</b>.', tex: 'n = ' + n + ',\\qquad a_n = ' + T(an) + ',\\qquad \\text{leading term } ' + ptex(mono(an, n)) });
         out.append(K.card('Expanded form and degree', K.steps(st)));
@@ -1423,14 +1425,14 @@
         dv.steps.forEach(o => {
           const tm = ptex(mono(o.c, o.k));
           lst.push({ text: 'Divide the leading term $' + ptex(mono(o.lead, o.top)) + '$ by the leading term of $d(x)$, $' + ptex(mono(d[dd], dd)) + '$: the next term of the quotient is $' + tm + '$.', tex: '\\frac{' + ptex(mono(o.lead, o.top)) + '}{' + ptex(mono(d[dd], dd)) + '} = ' + tm });
-          lst.push({ text: 'Multiply $d(x)$ by $' + tm + '$ and subtract it from what is left:', tex: '\\mathopen{}\\left(' + ptex(o.before) + '\\right) - \\mathopen{}\\left(' + ptex(o.m) + '\\right) = ' + ptex(o.after) });
+          lst.push({ text: 'Multiply $d(x)$ by $' + tm + '$ and subtract it from what is left:', tex: fixedPar(ptex(o.before)) + ' - ' + fixedPar(ptex(o.m)) + ' = ' + ptex(o.after) });
         });
         lst.push({ text: dv.steps.length ? 'Stop: what is left has a lower degree than $d(x)$. It is the <b>remainder</b>.' : 'The degree of $p(x)$ is already below that of $d(x)$: the quotient is $0$ and $p(x)$ itself is the remainder.', tex: 'q(x) = ' + ptex(dv.q) + ',\\qquad r(x) = ' + ptex(dv.r) });
         const back = padd(pmul(d, dv.q), dv.r), same = psub(back, p).every(c => c.isZero());
         let rt = null;
         if (dd === 1) { const c0 = d[0].neg().div(d[1]), pc = pev(p, c0); rt = K.p('<b>Remainder theorem</b>: dividing by $' + dt + '$ (which is $0$ at $x = ' + T(c0) + '$) leaves $p(' + T(c0) + ') = ' + T(pc) + '$' + (pc.isZero() ? ', so $' + dt + '$ is a <b>factor</b> of $p(x)$ (factor theorem).' : '.')); }
         out.append(K.card('Long division by $d(x) = ' + dt + '$', K.steps(lst),
-          K.p('So $p(x) = d(x)\\,q(x) + r(x)$:'), h('div', { class: 'lk-md', html: K.kx(pt + ' = \\mathopen{}\\left(' + dt + '\\right)\\mathopen{}\\left(' + ptex(dv.q) + '\\right)' + (pdeg(dv.r) < 0 ? '' : (neg(dv.r[pdeg(dv.r)]) ? ' - ' + ptex(pneg(dv.r)) : ' + ' + ptex(dv.r))), true) }),
+          K.p('So $p(x) = d(x)\\,q(x) + r(x)$:'), h('div', { class: 'lk-md', html: '<span class="lk-wrap">' + K.kx('\\displaystyle ' + pt + ' = \\mathopen{}\\left(' + dt + '\\right)' + fixedPar(ptex(dv.q)) + (pdeg(dv.r) < 0 ? '' : (neg(dv.r[pdeg(dv.r)]) ? ' - ' + ptex(pneg(dv.r)) : ' + ' + ptex(dv.r))), false) + '</span>' }),
           rt, ok('multiplying back, $d(x)\\,q(x) + r(x) = ' + ptex(back) + '$' + (same ? ', which is $p(x)$.' : ' (not $p(x)$: please report this).'))));
       }
       build();

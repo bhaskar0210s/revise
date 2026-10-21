@@ -8,6 +8,70 @@
   const K = REV.kit;
   const { F, TD, h } = K;
 
+  /* Maths a phone can wrap. The kit wraps a chain after =, + or × on a narrow phone, but shows an aligned block, or any
+     formula with a matrix, as one display that can only scroll sideways. flow() gives each row of an aligned block a
+     line of its own (a row that goes on with + or − joins the line before; one that goes on with = is indented), sets
+     a formula with a matrix inline so that it can break between the matrices, and lets a list break after a comma
+     outside brackets. flowSteps and flowAnswer are K.steps and K.answer with flow() for the maths. */
+  const { flow, flowSteps, flowAnswer } = (() => {
+    const TOK = /\\(?:begin|end)\{[^}]*\}|\\[A-Za-z]+|\\.|[\s\S]/y;
+    const toks = s => { const a = []; for (TOK.lastIndex = 0; TOK.lastIndex < s.length;) a.push(TOK.exec(s)[0]); return a; };
+    const depth = t => (t === '{' || t === '\\left' || t.startsWith('\\begin') ? 1 : t === '}' || t === '\\right' || t.startsWith('\\end') ? -1 : 0);
+    const LEAD = /^(?:\s|~|\\(?:quad|qquad|[,;: ]))+/, BIN = /^(?:[+−-]|\\(?:times|cdot|pm|mp|div)(?![A-Za-z]))/;
+    const REL = /^(?:[=<>]|\\(?:approx|le|leq|ge|geq|ne|neq|equiv|sim|to|Rightarrow|Longrightarrow|longrightarrow|iff|implies)(?![A-Za-z]))/;
+    function lines(src) {
+      const tk = toks(String(src)), out = [];
+      let pre = '', d = 0, i = 0;
+      while (i < tk.length) {
+        let t = tk[i++];
+        if (t !== '\\begin{aligned}' || d) { d += depth(t); pre += t; continue; }
+        if (pre.trim()) out.push(pre.trim());
+        pre = '';
+        const rows = [[]];
+        let cell = '', e = 0;
+        for (; i < tk.length; i++) {
+          t = tk[i];
+          if (!e && t === '\\end{aligned}') { i++; break; }
+          if (!e && t === '\\\\') {                                 // a new row; skip a spacing like \\[4pt]
+            rows[rows.length - 1].push(cell); rows.push([]); cell = '';
+            let k = i + 1;
+            while (k < tk.length && /^\s$/.test(tk[k])) k++;
+            if (tk[k] === '[') { while (k < tk.length && tk[k] !== ']') k++; i = k; }
+            continue;
+          }
+          if (!e && t === '&') { rows[rows.length - 1].push(cell); cell = ''; continue; }
+          e += depth(t);
+          cell += t;
+        }
+        rows[rows.length - 1].push(cell);
+        for (const c of rows) {
+          if (!c.join('').trim()) continue;
+          if (c.length > 2) { for (let k = 0; k < c.length; k += 2) { const p = (c[k] + ' ' + (c[k + 1] || '')).replace(LEAD, '').trim(); if (p) out.push(p); } continue; }
+          const go = c.length === 2 && !c[0].trim() ? c[1].replace(LEAD, '').trim() : null;
+          if (go && BIN.test(go) && out.length) out[out.length - 1] += ' ' + go;
+          else out.push(go && REL.test(go) ? '\\quad ' + go : c.join(' ').trim());
+        }
+        while (i < tk.length && LEAD.test(tk[i])) i++;
+      }
+      if (pre.trim()) out.push(pre.trim());
+      return out.map(line => {
+        let s = '', b = 0, e = 0;
+        for (const t of toks(line)) {
+          if (t === '(' || t === '[') b++; else if (t === ')' || t === ']') b--; else e += depth(t);
+          s += t + (t === ',' && !b && !e ? '\\allowbreak ' : '');
+        }
+        return s;
+      });
+    }
+    // a little room above and below each unbreakable piece, so that tall fractions on wrapped lines do not touch
+    const flow = tex => lines(tex).map(l => '<span class="lk-wrap">' + K.kx('\\displaystyle ' + l, false).replace(/<span class="base">/g, '<span class="base" style="margin: .15em 0">') + '</span>').join('');
+    return {
+      flow,
+      flowSteps: list => h('ol', { class: 'lk-steps' }, list.map(x => h('li', {}, x.text ? h('div', { class: 'lk-step-t', html: K.rich(x.text) }) : null, x.tex ? h('div', { class: 'lk-step-m', html: flow(x.tex) }) : null))),
+      flowAnswer: (label, tex, note) => h('div', { class: 'lk-answer' }, h('div', { class: 'lk-answer-k', html: K.rich(label) }), h('div', { class: 'lk-answer-v', html: flow(tex) }), note ? h('div', { class: 'lk-answer-n', html: K.rich(note) }) : null),
+    };
+  })();
+
   /* ================================================================ numbers */
   const FACES = [4, 6, 8, 10, 12, 20];
   const facesOf = v => (FACES.includes(+v) ? +v : 6);
@@ -105,7 +169,8 @@
         .map(([label, w]) => h('button', { type: 'button', class: 'lk-chip', text: label, onclick: () => { s.set({ w }, true); redo(); } }))));
   }
 
-  const { table, steps, answer, bars } = K;
+  const { table, bars } = K;
+  const steps = flowSteps, answer = flowAnswer;
 
   /* ================================================================ drawings */
   const diceRow = (vals, f, max = 120) => h('div', {}, h('div', { class: 'lk-outcomes', html: vals.slice(0, max).map(v => K.die(v, f, 26)).join('') }), vals.length > max ? K.p('… and ' + (vals.length - max) + ' more.') : null);
@@ -631,11 +696,8 @@
         out.innerHTML = '';
         const f = s.v.f, k = s.v.k;
         const ordered = F(f).pow(k), perm = k > f ? F(0) : K.fact(f).div(K.fact(f - k)), unordered = K.C(f + k - 1, k), distinct = K.C(f, k);
-        // one chain per count, each on its own line: the kit wraps a chain after "=" on a narrow phone (an aligned block cannot wrap)
-        const counts = ['\\text{ordered} = ' + f + '^{' + k + '} = ' + ordered.tex(), '\\text{ordered, all faces different} = ' + perm.tex(), '\\text{unordered} = \\tbinom{' + (f + k - 1) + '}{' + k + '} = ' + unordered.tex()];
-        const ans = answer('Outcomes of ' + k + (k === 1 ? ' die' : ' dice') + ' with ' + f + ' faces each', counts[0]);
-        ans.querySelector('.lk-answer-v').innerHTML = counts.map(c => '<span class="lk-wrap">' + K.kx('\\displaystyle ' + c, false) + '</span>').join('');
-        out.append(ans);
+        out.append(answer('Outcomes of ' + k + (k === 1 ? ' die' : ' dice') + ' with ' + f + ' faces each',
+          '\\begin{aligned} \\text{ordered} &= ' + f + '^{' + k + '} = ' + ordered.tex() + ' \\\\ \\text{ordered, all faces different} &= ' + perm.tex() + ' \\\\ \\text{unordered} &= \\tbinom{' + (f + k - 1) + '}{' + k + '} = ' + unordered.tex() + ' \\end{aligned}'));
 
         // stars and bars picture of one unordered outcome
         const ex = upTo(k).map(i => Math.max(1, Math.min(f, Math.ceil(i * f / (k + 1)))));
@@ -706,7 +768,9 @@
         out.append(answer('Two dice with ' + f + ' faces each', '\\begin{aligned} |S| &= ' + f + ' \\times ' + f + ' = ' + N + ' \\\\ P(\\text{each outcome}) &= ' + TD(F(1, N)) + ' \\end{aligned}'));
         out.append(K.card('The sample space $S$',
           twoDiceGrid(f, (i, j) => ({ html: show === 'sum' ? String(i + j) : show === 'max' ? String(Math.max(i, j)) : i + ',' + j })),
-          K.p('Rows: the first die. Columns: the second die. For example the cell in row 2, column ' + Math.min(5, f) + ' is the outcome (2, ' + Math.min(5, f) + '): ' + K.die(2, f, 22) + ' ' + K.die(Math.min(5, f), f, 22) + '.' + (show === 'sum' ? ' Cells with the same sum lie on a slanting line ↙.' : show === 'max' ? ' The larger face is the same along each ⌐-shaped band.' : ''))));
+          // the two dice go in through the DOM: K.p's text cleaner would show an <svg> as its source text
+          h('p', { class: 'lk-p' }, [...K.p('Rows: the first die. Columns: the second die. For example the cell in row 2, column ' + Math.min(5, f) + ' is the outcome (2, ' + Math.min(5, f) + '): ').childNodes],
+            h('span', { html: K.die(2, f, 22) + ' ' + K.die(Math.min(5, f), f, 22) }), '.' + (show === 'sum' ? ' Cells with the same sum lie on a slanting line ↙.' : show === 'max' ? ' The larger face is the same along each ⌐-shaped band.' : ''))));
         out.append(K.card('Step by step',
           steps([
             { text: 'An <b>outcome</b> is one possible result. Write it as a pair $(i, j)$: $i$ is the face of the first die and $j$ the face of the second. Think of a red die and a blue die, so $(1, 2)$ and $(2, 1)$ are different outcomes.' },

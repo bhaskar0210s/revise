@@ -1,6 +1,6 @@
 /* Revise: offline support. The first visit stores every file of the site; after that it opens without a network.
    A new version has a new cache name: its files are fetched once and the old ones deleted. */
-const CACHE = 'revise-8e1b7e1e0163';
+const CACHE = 'revise-b91e1c18286e';
 const FILES = [
  "./",
  "app.css",

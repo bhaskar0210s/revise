@@ -16,6 +16,70 @@
   'use strict';
   const K = REV.kit;
   const { F, h } = K;
+
+  /* Maths a phone can wrap. The kit wraps a chain after =, + or × on a narrow phone, but shows an aligned block, or any
+     formula with a matrix, as one display that can only scroll sideways. flow() gives each row of an aligned block a
+     line of its own (a row that goes on with + or − joins the line before; one that goes on with = is indented), sets
+     a formula with a matrix inline so that it can break between the matrices, and lets a list break after a comma
+     outside brackets. flowSteps and flowAnswer are K.steps and K.answer with flow() for the maths. */
+  const { flow, flowSteps, flowAnswer } = (() => {
+    const TOK = /\\(?:begin|end)\{[^}]*\}|\\[A-Za-z]+|\\.|[\s\S]/y;
+    const toks = s => { const a = []; for (TOK.lastIndex = 0; TOK.lastIndex < s.length;) a.push(TOK.exec(s)[0]); return a; };
+    const depth = t => (t === '{' || t === '\\left' || t.startsWith('\\begin') ? 1 : t === '}' || t === '\\right' || t.startsWith('\\end') ? -1 : 0);
+    const LEAD = /^(?:\s|~|\\(?:quad|qquad|[,;: ]))+/, BIN = /^(?:[+−-]|\\(?:times|cdot|pm|mp|div)(?![A-Za-z]))/;
+    const REL = /^(?:[=<>]|\\(?:approx|le|leq|ge|geq|ne|neq|equiv|sim|to|Rightarrow|Longrightarrow|longrightarrow|iff|implies)(?![A-Za-z]))/;
+    function lines(src) {
+      const tk = toks(String(src)), out = [];
+      let pre = '', d = 0, i = 0;
+      while (i < tk.length) {
+        let t = tk[i++];
+        if (t !== '\\begin{aligned}' || d) { d += depth(t); pre += t; continue; }
+        if (pre.trim()) out.push(pre.trim());
+        pre = '';
+        const rows = [[]];
+        let cell = '', e = 0;
+        for (; i < tk.length; i++) {
+          t = tk[i];
+          if (!e && t === '\\end{aligned}') { i++; break; }
+          if (!e && t === '\\\\') {                                 // a new row; skip a spacing like \\[4pt]
+            rows[rows.length - 1].push(cell); rows.push([]); cell = '';
+            let k = i + 1;
+            while (k < tk.length && /^\s$/.test(tk[k])) k++;
+            if (tk[k] === '[') { while (k < tk.length && tk[k] !== ']') k++; i = k; }
+            continue;
+          }
+          if (!e && t === '&') { rows[rows.length - 1].push(cell); cell = ''; continue; }
+          e += depth(t);
+          cell += t;
+        }
+        rows[rows.length - 1].push(cell);
+        for (const c of rows) {
+          if (!c.join('').trim()) continue;
+          if (c.length > 2) { for (let k = 0; k < c.length; k += 2) { const p = (c[k] + ' ' + (c[k + 1] || '')).replace(LEAD, '').trim(); if (p) out.push(p); } continue; }
+          const go = c.length === 2 && !c[0].trim() ? c[1].replace(LEAD, '').trim() : null;
+          if (go && BIN.test(go) && out.length) out[out.length - 1] += ' ' + go;
+          else out.push(go && REL.test(go) ? '\\quad ' + go : c.join(' ').trim());
+        }
+        while (i < tk.length && LEAD.test(tk[i])) i++;
+      }
+      if (pre.trim()) out.push(pre.trim());
+      return out.map(line => {
+        let s = '', b = 0, e = 0;
+        for (const t of toks(line)) {
+          if (t === '(' || t === '[') b++; else if (t === ')' || t === ']') b--; else e += depth(t);
+          s += t + (t === ',' && !b && !e ? '\\allowbreak ' : '');
+        }
+        return s;
+      });
+    }
+    // a little room above and below each unbreakable piece, so that tall fractions on wrapped lines do not touch
+    const flow = tex => lines(tex).map(l => '<span class="lk-wrap">' + K.kx('\\displaystyle ' + l, false).replace(/<span class="base">/g, '<span class="base" style="margin: .15em 0">') + '</span>').join('');
+    return {
+      flow,
+      flowSteps: list => h('ol', { class: 'lk-steps' }, list.map(x => h('li', {}, x.text ? h('div', { class: 'lk-step-t', html: K.rich(x.text) }) : null, x.tex ? h('div', { class: 'lk-step-m', html: flow(x.tex) }) : null))),
+      flowAnswer: (label, tex, note) => h('div', { class: 'lk-answer' }, h('div', { class: 'lk-answer-k', html: K.rich(label) }), h('div', { class: 'lk-answer-v', html: flow(tex) }), note ? h('div', { class: 'lk-answer-n', html: K.rich(note) }) : null),
+    };
+  })();
   const Z = F(0), ONE = F(1);
 
   /* ================================================================== styles (added once) */
@@ -1309,7 +1373,7 @@
   /** the largest number used as a power in the tree (x^9 → 9) */
   const maxPow = n => (n.k === '^' && n.e.k === 'n' ? Math.max(Math.abs(n.e.v.num()), maxPow(n.b)) : n.k === 'f' ? maxPow(n.a) : Array.isArray(n.a) ? Math.max(0, ...n.a.map(maxPow)) : 0);
   /** one formula on its own line (display maths, scrolling sideways when long) */
-  const mathBlock = tex => h('div', { class: 'lk-md', html: K.kx(tex, true) });
+  const mathBlock = tex => h('div', { class: 'lk-md', html: flow(tex) });
   /** a vector of values as TeX: (2, 4, 6) */
   const vecT = vals => '\\left(' + vals.join(', ') + '\\right)';
   const fArgs = vars => vars.join(', ');
@@ -1657,14 +1721,14 @@
         const v0 = valueAt(f, A.pt), c0 = v0.undef ? NaN : vNum(v0), fT = 'f(' + fArgs(vars) + ')', what = n === 3 ? 'surface' : 'curve';
         const chain = v0.undef ? null : evalChain(f, A.pt, o).tex;
         if (v0.undef) out.append(K.note('$f$ has no value at your point $' + A.tex + '$ (it would divide by zero, take the log or square root of a negative number, or be too large to compute), so no level ' + what + ' passes through it. Choose another point.', 'warn'));
-        else out.append(K.answer('The value at your point: the level ' + what + ' through it is $' + fT + ' = ' + vT(v0, o.dec) + '$', 'f' + A.tex + ' = ' + chain));
+        else out.append(flowAnswer('The value at your point: the level ' + what + ' through it is $' + fT + ' = ' + vT(v0, o.dec) + '$', 'f' + A.tex + ' = ' + chain));
         const w = s.v.w || 3, a = A.fl.x, b = A.fl.y, fxy = f2(cf, vars, n === 3 ? A.fl.z : 0), win = box2(a, b, w);
         const typed = readLevels(s.v.levels);
         const cs = typed || autoLevels(fxy, win.x0, win.x1, win.y0, win.y1, c0);
         const pic = contour({ fxy, ...win, levels: divergingLevels(cs, c0), point: [a, b], aria: 'level curves of f around your point' });
         const keyEl = legend([['k1', 'levels below your point’s'], ['k2', 'levels above it'], ['', Number.isFinite(c0) ? 'the level through your point, $c = ' + vT(v0, o.dec) + '$' : 'your point (dot)']]);
         if (n === 2) {
-          out.append(K.card('What a level curve is', K.steps([
+          out.append(K.card('What a level curve is', flowSteps([
             { text: 'The graph of $f$ is the surface $z = f(x, y)$: above each point $(x, y)$ of the plane it has height $f(x, y)$ (lecture 9.1 draws such surfaces).' },
             { text: 'Cut the surface at a height $c$. The points $(x, y)$ where $f(x, y) = c$ form the <b>level curve</b> of $f$ at level $c$. Drawn together, level curves are a map of the surface, like the contour lines of a hill.' },
             v0.undef ? { text: 'Your point $' + A.tex + '$: $f$ is not defined there.' } : { text: 'Your point: put $x = ' + A.coT('x') + '$ and $y = ' + A.coT('y') + '$ into $f$:', tex: 'f' + A.tex + ' = ' + chain },
@@ -1681,7 +1745,7 @@
             graph1({ fn: y => cf({ x: a, y }), t0: b - w, t1: b + w, mark: [b, c0], tName: 'y', yName: 'f(' + decS(a) + ', y)', aria: 'f along the line x = a' })));
         } else {
           const desc = v0.undef ? null : describeSurface(f, v0);
-          out.append(K.card('Level surfaces', K.steps([
+          out.append(K.card('Level surfaces', flowSteps([
             { text: 'For $f(x, y, z)$ the graph would need four dimensions, so instead we look at <b>level surfaces</b>: all the points $(x, y, z)$ where $f(x, y, z) = c$ (lecture 9.1 shows $x^2 + y^2 + z^2$).' },
             v0.undef ? { text: 'Your point $' + A.tex + '$: $f$ is not defined there.' } : { text: 'Your point: put $x = ' + A.coT('x') + '$, $y = ' + A.coT('y') + '$ and $z = ' + A.coT('z') + '$ into $f$:', tex: 'f' + A.tex + ' = ' + chain },
             v0.undef ? null : { text: 'So your point lies on the level surface', tex: tx(f, o) + ' = ' + vT(v0, o.dec) },
@@ -1761,8 +1825,8 @@
         // the value exists: continuity by the rules (lecture 9.4)
         if (!v0.undef) {
           const chain = evalChain(f, A.pt, o).tex;
-          out.append(K.answer('The limit, by putting in the point', lim + ' = ' + chain, '$f$ is continuous at $' + A.tex + '$: the limit is its value there.'));
-          out.append(K.card('Why putting in the point works here', K.steps([
+          out.append(flowAnswer('The limit, by putting in the point', lim + ' = ' + chain, '$f$ is continuous at $' + A.tex + '$: the limit is its value there.'));
+          out.append(K.card('Why putting in the point works here', flowSteps([
             { text: '$f$ is made of polynomials, sums, products, quotients and the functions sin, cos, tan, exp, log, sqrt. Each of these is continuous wherever it is defined, and so are sums, products, quotients (with a bottom that is not 0) and compositions of them (lecture 9.4: the limit rules and the composition rule).' },
             { text: 'At your point everything is defined: no division by zero, no log or square root of a negative number. So the limit is the value at the point:', tex: lim + ' = f' + A.tex + ' = ' + chain },
             { text: 'In particular every path into the point gives this same value, as the table below shows.' },
@@ -1818,7 +1882,7 @@
               else steps.push({ text: 'Let $' + par + ' \\to 0$: the limit depends on $' + oo.ren.m + '$, a different value for each ' + (p.id === 'm' ? 'slope' : 'parabola') + ':', tex: '\\lim_{' + par + ' \\to 0} ' + argT + ' = ' + limQT(g.L, oo) });
             }
           }
-          out.append(K.card('The limit along each path (exact)', K.steps(steps)));
+          out.append(K.card('The limit along each path (exact)', flowSteps(steps)));
           // the verdict
           const vals = [];
           const constOf = r => (r.spec.lim.kind === 'val' ? limQconst(r.spec.lim.L) || (r.spec.lim.L.n.isZero() ? Z : null) : null);
@@ -1859,13 +1923,13 @@
           const und = est.filter(e => e.kind === 'undef');
           out.append(K.card('The limit along each path (from the numbers)', K.p('$f$ is not a fraction of two polynomials' + (R ? ' with fraction numbers' : '') + ', so this lab reads the limits off the values below instead of working them out exactly. Numbers can suggest a limit but never prove one.'),
             und.length ? K.note('$f$ is not defined along ' + und.map(e => e.p.name).join(' and ') + ', so ' + (und.length > 1 ? 'those paths say' : 'that path says') + ' nothing.', '') : null,
-            K.steps(est.filter(e => e.kind !== 'undef').map(e => ({ text: 'Along ' + e.p.name + ': ' + (e.kind === 'inf' ? 'the values grow without bound.' : e.kind === 'val' ? 'the values approach about $' + decT(e.L, 4) + '$.' : 'the values do not settle down.') })))));
+            flowSteps(est.filter(e => e.kind !== 'undef').map(e => ({ text: 'Along ' + e.p.name + ': ' + (e.kind === 'inf' ? 'the values grow without bound.' : e.kind === 'val' ? 'the values approach about $' + decT(e.L, 4) + '$.' : 'the values do not settle down.') })))));
           if (key(f) === key(parse('sin(xy)/(xy)'))) out.append(K.note('Lecture 9.5 proves this limit: write $u = xy$. As $(x, y) \\to (0, 0)$, $u \\to 0$, and $\\frac{\\sin u}{u} \\to 1$ (one-variable calculus), so by the composition rule the limit is $1$.', 'good'));
         }
         // answer first
         const ansT = verdict && verdict.dne ? lim + '\\ \\text{does not exist}' : verdict ? lim + (verdict.numeric ? ' \\approx ' + decT(verdict.Lx, 4) + '\\ \\text{(if it exists)}' : ' = ' + numT(verdict.L) + '\\ \\text{(if it exists)}') : lim + '\\ ?';
         const ansNote = verdict && verdict.dne ? verdict.why + ' A limit must be the same along every path (lecture 9.5).' : verdict ? 'Every path tried gives this value. That makes the limit likely, but paths alone can never prove a limit exists: there are infinitely many paths (lecture 9.5; the Week 9 tutorial shows a function where every line agrees but a parabola does not).' : 'The paths tried say nothing here.';
-        out.prepend(K.answer('The limit at $' + A.tex + '$, where the formula of $f$ is not defined', ansT, ansNote));
+        out.prepend(flowAnswer('The limit at $' + A.tex + '$, where the formula of $f$ is not defined', ansT, ansNote));
         out.append(tableCard, picCard);
         // continuity
         const cont = [];
@@ -1873,7 +1937,7 @@
         else if (!given) cont.push({ text: 'The formula does not give $f$ a value at $' + A.tex + '$, so $f$ is not continuous there as it stands. Give $f$ a value at the point (the box on the left) to ask whether that makes it continuous.' });
         else if (verdict && !verdict.numeric) cont.push({ text: 'Continuity needs the limit to equal the value: $f' + A.tex + ' = ' + vT(given) + '$ against the limit $' + numT(verdict.L) + '$ (if the limit exists).', tex: given.q && given.q.eq(verdict.L) ? '\\text{equal: continuous at the point, if the limit exists}' : '\\text{not equal: not continuous}' });
         else if (verdict) cont.push({ text: 'Continuity needs the limit to equal the value: $f' + A.tex + ' = ' + vT(given) + '$ against a limit of about $' + decT(verdict.Lx, 4) + '$.', tex: Math.abs(vNum(given) - verdict.Lx) < 1e-3 * Math.max(1, Math.abs(verdict.Lx)) ? '\\text{they agree}' : '\\text{not equal: not continuous}' });
-        out.append(K.card('Continuity at the point', K.p('$f$ is continuous at a point when its limit there exists and equals its value there (lecture 9.5).'), K.steps(cont)));
+        out.append(K.card('Continuity at the point', K.p('$f$ is continuous at a point when its limit there exists and equals its value there (lecture 9.5).'), flowSteps(cont)));
       }
     },
 
@@ -1929,14 +1993,14 @@
         const value = !fdAt.undef ? fdAt : def && def.res.kind === 'val' ? valQ(def.res.L) : numDef && numDef.kind === 'val' ? { q: null, x: numDef.x, t: null } : null;
         // the answer
         const others = vars.filter(v => v !== d).map(v => { const r = valueAt(deriv(f, v), A.pt); return r.undef ? null : '$f_{' + v + '}' + A.tex + ' = ' + vT(r, o.dec) + '$'; }).filter(Boolean);
-        if (value) out.append(K.answer('The partial derivative with respect to $' + d + '$ at your point', dT + ' ' + vEnd(value, o.dec), others.length ? 'The other ' + (others.length > 1 ? 'ones are ' : 'one is ') + others.join(' and ') + '.' : null));
-        else if ((def && def.res.kind === 'inf') || (numDef && numDef.kind === 'inf')) out.append(K.answer('The partial derivative with respect to $' + d + '$ at your point', dT + '\\ \\text{does not exist}', 'The difference quotient grows without bound as $h \\to 0$.'));
-        else if (numDef && numDef.kind === 'sides') out.append(K.answer('The partial derivative with respect to $' + d + '$ at your point', dT + '\\ \\text{does not exist}', 'From the right ($h > 0$) the quotients approach about $' + decT(numDef.r) + '$, from the left about $' + decT(numDef.l) + '$: the two sides disagree, so there is no limit (the graph has a corner here).'));
+        if (value) out.append(flowAnswer('The partial derivative with respect to $' + d + '$ at your point', dT + ' ' + vEnd(value, o.dec), others.length ? 'The other ' + (others.length > 1 ? 'ones are ' : 'one is ') + others.join(' and ') + '.' : null));
+        else if ((def && def.res.kind === 'inf') || (numDef && numDef.kind === 'inf')) out.append(flowAnswer('The partial derivative with respect to $' + d + '$ at your point', dT + '\\ \\text{does not exist}', 'The difference quotient grows without bound as $h \\to 0$.'));
+        else if (numDef && numDef.kind === 'sides') out.append(flowAnswer('The partial derivative with respect to $' + d + '$ at your point', dT + '\\ \\text{does not exist}', 'From the right ($h > 0$) the quotients approach about $' + decT(numDef.r) + '$, from the left about $' + decT(numDef.l) + '$: the two sides disagree, so there is no limit (the graph has a corner here).'));
         else if (v0.undef && !given) out.append(K.note('$f$ has no value at your point $' + A.tex + '$ (the formula would divide by zero, or take the log or square root of a negative number). If $f$ is given a value there, as lecture 9.2 gives $\\frac{xy}{x^2 + y^2}$ the value $0$ at $(0, 0)$, type it in the box on the left: the definition needs it. Otherwise choose a point where $f$ is defined.', 'warn'));
         // the definition
         const eNum = vars.map(v => (v === d ? 1 : 0));
         const defCard = K.card('From the definition: $h \\to 0$',
-          K.steps([
+          flowSteps([
             { text: 'Change only $' + d + '$, by a small number $h$, and keep ' + vars.filter(v => v !== d).map(v => '$' + v + '$').join(' and ') + ' fixed. The rate of change is the limit of the difference quotient (lecture 9.2):', tex: dT + ' = \\lim_{h \\to 0} \\frac{f(' + vars.map(v => (v === d ? (A.exact && A.ex[v].isZero() ? 'h' : A.coT(v) + ' + h') : A.coT(v))).join(', ') + ') - f' + A.tex + '}{h}' },
             ...(def ? def.steps : [{ text: c0 ? 'Here $f$ is not a fraction of polynomials with fraction numbers, so the limit is read off the table below.' : 'The definition needs a value of $f$ at the point.' }]),
           ]),
@@ -1946,7 +2010,7 @@
         const ex = explainD(f, d, vars, o);
         const rules = [...ex.steps];
         if (!fdAt.undef) rules.push({ text: 'At your point:', tex: 'f_{' + d + '}' + A.tex + ' = ' + evalChain(fd, A.pt, o).tex });
-        const rulesCard = K.card('By the rules: hold the other variables constant', K.steps(rules), fdAt.undef ? K.note('This formula has no value at your point (it would divide by zero, or take the log or square root of a negative number), so the rules cannot give $f_{' + d + '}' + A.tex + '$. Where $f$ itself has a value, the definition can still decide, as lecture 9.2 does for $\\frac{xy}{x^2 + y^2}$ at $(0, 0)$.', 'warn') : null);
+        const rulesCard = K.card('By the rules: hold the other variables constant', flowSteps(rules), fdAt.undef ? K.note('This formula has no value at your point (it would divide by zero, or take the log or square root of a negative number), so the rules cannot give $f_{' + d + '}' + A.tex + '$. Where $f$ itself has a value, the definition can still decide, as lecture 9.2 does for $\\frac{xy}{x^2 + y^2}$ at $(0, 0)$.', 'warn') : null);
         out.append(def || v0.undef ? defCard : rulesCard, def || v0.undef ? rulesCard : defCard);
         // check
         const last = c0 ? (() => { const env = {}; vars.forEach(v => { env[v] = A.fl[v] + (v === d ? 1e-6 : 0); }); return (cf(env) - vNum(c0)) / 1e-6; })() : NaN;
@@ -1989,7 +2053,7 @@
             const one = Dn.isConst() && Dn.cval().eq(1), oo = { ...o, ren: { t: 'h' } };
             lines.push({ text: '$f_{' + vi + vj + '}' + A.tex + '$: use the formula of $f_{' + vi + '}$ near the point (where it is defined) and its value $f_{' + vi + '}' + A.tex + ' = ' + numT(first[vi]) + '$ from the definition:', tex: 'f_{' + vi + vj + '}' + A.tex + ' = \\lim_{h \\to 0}\\frac{' + mv + ' - ' + numT(first[vi]) + '}{h} = \\lim_{h \\to 0}\\frac{' + (one ? polyByT(N, 3, oo) : '\\frac{' + polyByT(N, 3, oo) + '}{' + polyByT(Dn, 3, oo) + '}') + ' - ' + numT(first[vi]) + '}{h}' + (r.kind === 'val' ? ' = ' + numT(r.L) : '\\ \\text{does not exist}') });
           }
-          if (lines.length) out.append(K.card('Mixed partials at your point, from the definition', K.steps(lines), K.p('Where the mixed partial derivatives are not continuous, Clairaut’s theorem does not apply and they can differ, as in lecture 11.1’s example.')));
+          if (lines.length) out.append(K.card('Mixed partials at your point, from the definition', flowSteps(lines), K.p('Where the mixed partial derivatives are not continuous, Clairaut’s theorem does not apply and they can differ, as in lecture 11.1’s example.')));
         }
       }
     },
@@ -2069,7 +2133,7 @@
           const parts = vars.map(v => quotLimit(...Object.values(ratAlong(R, A.ex, Object.fromEntries(vars.map(w2 => [w2, w2 === v ? ONE : Z])), vars)), given.q));
           if (parts.every(p => p.kind === 'val')) { G = parts.map(p => valQ(p.L)); stepsG.push({ text: 'The formulas are not defined at your point, so the partial derivatives there come from the definition (as in the Partial derivatives topic), using $f' + A.tex + ' = ' + vT(given) + '$:', tex: '\\nabla f' + A.tex + ' = ' + vecT(G.map(g => vT(g))) }); }
         }
-        if (!G) { out.append(K.note(v0.undef && !given ? '$f$ is not defined at your point. Give it a value there (the box on the left), as lecture 9.3 does with $\\frac{xy}{x^2 + y^2}$ at $(0, 0)$.' : 'The gradient cannot be found at your point.', 'warn')); out.append(K.card('The gradient', K.steps(stepsG))); return; }
+        if (!G) { out.append(K.note(v0.undef && !given ? '$f$ is not defined at your point. Give it a value there (the box on the left), as lecture 9.3 does with $\\frac{xy}{x^2 + y^2}$ at $(0, 0)$.' : 'The gradient cannot be found at your point.', 'warn')); out.append(K.card('The gradient', flowSteps(stepsG))); return; }
         // the unit vector
         const stepsU = [];
         if (dir.deg != null) {
@@ -2117,11 +2181,11 @@
         const defVal = diverges ? null : defE ? valQ(defE.res.L) : alongV && alongV.kind === 'val' && dir.len ? (() => { const r = new Q2(Z, alongV.L.div(dir.len.c.mul(F(dir.len.t))), dir.len.t); return { q: r.isQ() ? r.r : null, x: r.num(), t: r.isQ() ? null : r.tex() }; })() : Number.isFinite(lastQ) ? { q: null, x: lastQ, t: null } : null;
         // answer
         const agree = defVal && Math.abs(vNum(defVal) - fuX) < 1e-9 * Math.max(1, Math.abs(fuX));
-        out.append(K.answer('The gradient and the rate of change in your direction', '\\begin{aligned}\\nabla f' + A.tex + ' &= ' + vecT(G.map(g => vT(g, o.dec))) + ' \\\\ f_u' + A.tex + (singular ? (defVal ? ' &= ' + vT(defVal) : ' &\\ \\text{does not exist}') : ' &' + fuEnd) + '\\end{aligned}', singular ? (agree ? 'Only the definition can be trusted at this point; in this direction it happens to agree with $\\nabla f \\cdot u$ (try another direction; lectures 9.3 and 9.6).' : 'Here the definition and the dot product disagree (lectures 9.3 and 9.6).') : '$f_u$ is the directional derivative, also written $D_u f$.'));
-        out.append(K.card('Step 1: the gradient', K.steps(stepsG)));
-        out.append(K.card('Step 2: the unit vector $u$', K.steps(stepsU)));
-        out.append(K.card('Step 3: $f_u = \\nabla f \\cdot u$', K.steps(stepsD)));
-        out.append(K.card('Check: from the definition', K.steps([{ text: 'Move from the point a small step $h$ along $u$ (lecture 9.3):', tex: 'f_u' + A.tex + ' = \\lim_{h \\to 0}\\frac{f\\left(' + A.tex + ' + hu\\right) - f' + A.tex + '}{h}' }, ...(defE ? defE.steps : [])]),
+        out.append(flowAnswer('The gradient and the rate of change in your direction', '\\begin{aligned}\\nabla f' + A.tex + ' &= ' + vecT(G.map(g => vT(g, o.dec))) + ' \\\\ f_u' + A.tex + (singular ? (defVal ? ' &= ' + vT(defVal) : ' &\\ \\text{does not exist}') : ' &' + fuEnd) + '\\end{aligned}', singular ? (agree ? 'Only the definition can be trusted at this point; in this direction it happens to agree with $\\nabla f \\cdot u$ (try another direction; lectures 9.3 and 9.6).' : 'Here the definition and the dot product disagree (lectures 9.3 and 9.6).') : '$f_u$ is the directional derivative, also written $D_u f$.'));
+        out.append(K.card('Step 1: the gradient', flowSteps(stepsG)));
+        out.append(K.card('Step 2: the unit vector $u$', flowSteps(stepsU)));
+        out.append(K.card('Step 3: $f_u = \\nabla f \\cdot u$', flowSteps(stepsD)));
+        out.append(K.card('Check: from the definition', flowSteps([{ text: 'Move from the point a small step $h$ along $u$ (lecture 9.3):', tex: 'f_u' + A.tex + ' = \\lim_{h \\to 0}\\frac{f\\left(' + A.tex + ' + hu\\right) - f' + A.tex + '}{h}' }, ...(defE ? defE.steps : [])]),
           c0 ? K.table(['$h$', '$f(\\text{point} + hu)$', 'quotient'], rows, { compact: true }) : null,
           c0 ? K.note(defOK && !singular ? 'The quotients approach $' + fuT + '$, the dot product ✓' : singular ? (defVal ? (agree ? 'The definition gives $' + vT(defVal) + '$, the same as the dot product in this direction. In other directions it need not: the gradient is not continuous at the point, so the theorem does not apply there.' : 'The definition gives $' + vT(defVal) + '$, not the dot product: the gradient is not continuous at the point, so the theorem does not apply.') : 'The quotients do not settle down: this directional derivative does not exist, although the gradient does (lecture 9.3).') : 'The quotients and the dot product differ ✗', defOK && !singular ? 'good' : singular && agree ? '' : 'warn') : null));
         // steepest ascent and descent
@@ -2144,12 +2208,12 @@
             const [g1, g2, g3] = gx;
             const b1 = Math.abs(g1) > 1e-12 ? [g2, -g1, 0] : [1, 0, 0], b2 = Math.abs(g1) > 1e-12 ? [g3, 0, -g1] : [0, g3, -g2];
             const vt = vv => vecT(vv.map(x => { const r = ident(x); return r.q ? numT(r.q) : r.t || decT(x); }));
-            steep.push({ text: '<b>No change</b>: every direction perpendicular to the gradient, that is every $u$ with $\\nabla f \\cdot u = 0$. With three variables these fill a plane; two directions in it (lecture 10.1):', tex: vt(b1) + '\\ \\text{and}\\ ' + vt(b2) + '\\ \\text{(divide each by its length)}' });
+            steep.push({ text: '<b>No change</b>: every direction perpendicular to the gradient, that is every $u$ with $\\nabla f \\cdot u = 0$. With three variables these fill a plane; two directions in it (lecture 10.1):', tex: vt(b1) + '\\ \\text{and}\\allowbreak\\ ' + vt(b2) + '\\allowbreak\\ \\text{(divide each by its length)}' });
           }
           const cth = Math.max(-1, Math.min(1, fuX / gn));
           steep.push({ text: 'Your direction: $\\cos\\theta = \\frac{f_u}{\\|\\nabla f\\|} \\approx ' + decT(cth) + '$, so it makes an angle of about $' + decT((Math.acos(cth) * 180) / Math.PI, 1) + '^\\circ$ with the gradient.' });
         }
-        out.append(K.card('Steepest ascent, steepest descent, no change (lecture 10.1)', K.steps(steep)));
+        out.append(K.card('Steepest ascent, steepest descent, no change (lecture 10.1)', flowSteps(steep)));
         // the picture
         if (gn >= 0) {
           const w = s.v.w || 2, a = A.fl.x, b = A.fl.y, fxy = f2(cf, vars, n === 3 ? A.fl.z : 0), win = box2(a, b, w), cv = c0 ? vNum(c0) : NaN;
@@ -2212,7 +2276,7 @@
           if (Math.abs(cst) > 1e-12) parts.push(nT(cst));
           simple = joinT(parts.length ? parts : ['0']);
         }
-        out.append(K.answer('The tangent ' + what + ' at $' + A.tex + '$', zN + ' = ' + simple, n === 3 ? 'With three variables the graph lives in four dimensions; the extra coordinate is called $w$ here (the lecture calls it $u$).' : null));
+        out.append(flowAnswer('The tangent ' + what + ' at $' + A.tex + '$', zN + ' = ' + simple, n === 3 ? 'With three variables the graph lives in four dimensions; the extra coordinate is called $w$ here (the lecture calls it $u$).' : null));
         const map = {};
         vars.forEach(v => { map[v] = subNode(A.pt[v]); });
         const st = [{ text: 'The formula (lecture 10.3) needs the value of $f$ and its partial derivatives at the point:', tex: general }];
@@ -2220,7 +2284,7 @@
         vars.forEach((v, i) => st.push({ text: 'The partial derivative with respect to $' + v + '$ (hold the other variables constant), then its value at the point:', tex: 'f_{' + v + '} = ' + tx(grads[i], o) + ',\\quad f_{' + v + '}' + A.tex + ' = ' + evalChain(grads[i], A.pt, o).tex }));
         st.push({ text: 'Put them into the formula:', tex: withNums });
         if (withNums.replace(/\s/g, '') !== (zN + ' = ' + simple).replace(/\s/g, '')) st.push({ text: 'Multiply out and collect:', tex: zN + ' = ' + simple });
-        out.append(K.card('Every value', K.steps(st)));
+        out.append(K.card('Every value', flowSteps(st)));
         if (key(f) === key(parse('x^2+y^2+z^2')) && A.exact && A.ex.x.eq(2) && A.ex.y.eq(3) && A.ex.z.eq(-1)) out.append(K.note('In lecture 10.3 the slide for the linear approximation (at 33:30) starts from $3$ instead of $f(2, 3, -1) = 14$ and ends with $4x + 6y - 2z - 29$. With $14$, as the same lecture uses for the tangent hyperplane at 28:00, it is $4x + 6y - 2z - 14$.', ''));
         // the linear approximation
         const L = env => vNum(v0) + vars.reduce((acc, v, i) => acc + vNum(gv[i]) * (env[v] - A.fl[v]), 0);
@@ -2247,7 +2311,7 @@
         // the normal vector
         const nv = [...gv.map(g => vT(g, o.dec)), '-1'];
         const dirs = vars.map((v, i) => vars.map((_, j) => (i === j ? '1' : '0')).concat([vT(gv[i], o.dec)]));
-        out.append(K.card('The normal vector', K.steps([
+        out.append(K.card('The normal vector', flowSteps([
           { text: 'Move everything to one side:', tex: vars.map((v, i) => 'f_{' + v + '}(' + v + ' - ' + 'abc'[i] + ')').join(' + ') + ' - (' + zN + ' - f' + (n === 3 ? '(a, b, c)' : '(a, b)') + ') = 0' },
           { text: 'In a linear equation the coefficients of the variables form a vector perpendicular to the ' + what + ' (its <b>normal vector</b>):', tex: 'n = (f_{' + vars.join('}, f_{') + '}, -1) = ' + vecT(nv) },
           { text: 'Check: the ' + what + ' contains the direction ' + vars.map((v, i) => '$' + vecT(dirs[i]) + '$').join(' and ') + ' (one step in $' + vars.join('$ or $') + '$ raises $' + zN + '$ by the partial derivative), and $n$ is perpendicular to ' + (n === 3 ? 'each' : 'both') + ':', tex: vars.map((v, i) => vecT(nv) + ' \\cdot ' + vecT(dirs[i]) + ' = ' + facT(gv[i], o.dec) + ' - ' + facT(gv[i], o.dec) + ' = 0').join(',\\quad ') },
@@ -2270,7 +2334,7 @@
               const fuX = fu ? fu.num() : gv.reduce((acc, g, i) => acc + vNum(g) * (comps[i].x / nf), 0);
               const fuT = fu ? fu.tex(o.dec) : decT(fuX);
               const lineT = '(' + vars.join(', ') + ', ' + zN + ') = ' + vecT([...vars.map(v => A.coT(v)), vT(v0, o.dec)]) + ' + t' + vecT([...uT, fuT]);
-              out.append(K.card('The tangent line in your direction (lecture 10.2)', K.steps([
+              out.append(K.card('The tangent line in your direction (lecture 10.2)', flowSteps([
                 { text: 'The unit vector of your direction:', tex: 'u = ' + vecT(uT) },
                 { text: 'The slope along it is the directional derivative:', tex: 'f_u' + A.tex + ' = \\nabla f' + A.tex + ' \\cdot u = ' + gv.map((g, i) => facT(g, o.dec) + ' \\cdot ' + facT(u ? u[i] : { q: null, x: comps[i].x / nf, t: null }, o.dec)).join(' + ') + (fu ? ' = ' + fuT : ' \\approx ' + fuT) },
                 { text: 'Moving $t$ along $u$ raises the height by $t f_u$, so the tangent line is', tex: lineT },
@@ -2347,19 +2411,19 @@
         const verdicts = pts.map((p, idx) => hessTest(H, vars, p.vals, slots, o, letters[idx]));
         const ansRows = pts.map((p, idx) => '\\text{' + letters[idx] + '} = ' + ptT(p) + ':\\ \\text{' + verdicts[idx].name + '}');
         fams.forEach(fm => ansRows.push(fm.free.length === n ? '\\text{every point is a critical point}' : '\\left(' + vars.map((v, i) => famCoord(fm, v, i)).join(', ') + '\\right):\\ \\text{a whole ' + (fm.free.length === 1 ? 'line' : 'plane') + ' of critical points}'));
-        out.prepend(K.answer(pts.length + fams.length ? 'The critical points and what the Hessian test says' : 'Critical points', ansRows.length ? (ansRows.length === 1 ? ansRows[0] : '\\begin{aligned}' + ansRows.map(r => r.replace(':\\ ', ' &:\\ ')).join(' \\\\ ') + '\\end{aligned}') : '\\text{none}', null));
-        out.append(K.card('Step 2: solve $\\nabla f = 0$', K.steps(st2)));
+        out.prepend(flowAnswer(pts.length + fams.length ? 'The critical points and what the Hessian test says' : 'Critical points', ansRows.length ? (ansRows.length === 1 ? ansRows[0] : '\\begin{aligned}' + ansRows.map(r => r.replace(':\\ ', ' &:\\ ')).join(' \\\\ ') + '\\end{aligned}') : '\\text{none}', null));
+        out.append(K.card('Step 2: solve $\\nabla f = 0$', flowSteps(st2)));
         const Ht = '\\begin{pmatrix}' + H.map(row => row.map(g => tx(g, o)).join(' & ')).join(' \\\\ ') + '\\end{pmatrix}';
         out.append(K.card('Step 3: the Hessian matrix (lecture 11.1)', K.p('The matrix of the second-order partial derivatives; row $i$, column $j$ holds $\\frac{\\partial^2 f}{\\partial x_i\\,\\partial x_j}$. It is symmetric because the mixed partial derivatives of a polynomial are equal.'), mathBlock('H_f(' + fArgs(vars) + ') = ' + Ht),
           K.p(n === 2 ? 'The test (lecture 11.2) at a critical point: if $\\det H > 0$ and $f_{xx} > 0$, a local minimum; if $\\det H > 0$ and $f_{xx} < 0$, a local maximum; if $\\det H < 0$, a saddle point; if $\\det H = 0$, the test says nothing.' : 'The test (lecture 11.3) uses the determinants of the top-left corners $D_1 = f_{xx}$, $D_2 = f_{xx}f_{yy} - f_{xy}^2$, $D_3 = \\det H$: signs $+, +, +$ give a local minimum; $-, +, -$ a local maximum; any other signs with $D_3 \\ne 0$ a saddle point; $D_3 = 0$ says nothing.')));
-        verdicts.forEach((vd, idx) => out.append(K.card('Point ' + letters[idx] + ': $' + ptT(pts[idx]) + '$', K.steps(vd.steps))));
+        verdicts.forEach((vd, idx) => out.append(K.card('Point ' + letters[idx] + ': $' + ptT(pts[idx]) + '$', flowSteps(vd.steps))));
         fams.forEach(fm => {
           const fixed = {};
           vars.forEach((v, i) => { if (!fm.free.includes(slots[i]) && fm.vals[slots[i]] && fm.vals[slots[i]].q) fixed[v] = num(fm.vals[slots[i]].q); });
           if (fm.lin) fm.lin.forEach(({ v, row }) => { let P = Poly.c(row[fm.cols.length]); fm.cols.forEach((cv, j) => { if (fm.free.includes(cv)) P = P.sub(Poly.v(cv).scale(row[j])); }); fixed[PV[v]] = polyTree(P); });
           const Hf = H.map(row => row.map(g => S(subst(g, fixed))));
           const det = n === 2 ? S(add(mul(Hf[0][0], Hf[1][1]), neg(mul(Hf[0][1], Hf[1][0])))) : null;
-          out.append(K.card(fm.free.length === n ? 'Every point is a critical point' : 'A whole ' + (fm.free.length === 1 ? 'line' : 'plane') + ' of critical points', K.steps([
+          out.append(K.card(fm.free.length === n ? 'Every point is a critical point' : 'A whole ' + (fm.free.length === 1 ? 'line' : 'plane') + ' of critical points', flowSteps([
             { text: 'Every point ' + '$\\left(' + vars.map((v, i) => famCoord(fm, v, i)).join(', ') + '\\right)$ is a critical point (lecture 10.4 shows this for $x^3$: the whole $y$-axis).' },
             { text: 'The Hessian there:', tex: 'H = \\begin{pmatrix}' + Hf.map(row => row.map(g => tx(g, o)).join(' & ')).join(' \\\\ ') + '\\end{pmatrix}' + (det ? ',\\quad \\det H = ' + tx(det, o) : '') },
             det && isNum(det, 0) ? { text: 'The determinant is $0$ at every one of them, so the test says nothing. (For $x^3$ these points are saddle points: $f$ is negative on one side and positive on the other.)' } : { text: 'Apply the test at each point of the line separately.' },
@@ -2398,7 +2462,7 @@
             return { ok, agrees, text: '<b>' + letters[idx] + '</b>: $\\nabla f = ' + vecT(vars.map(() => '0')) + '$ there ' + (ok ? (exact ? '(exactly) ✓' : '(to 8 decimals) ✓') : '✗') + '. Around it, at distance $' + decT(r) + '$, $f$ is ' + (seen === 'min' ? 'higher in every direction: it looks like a minimum' : seen === 'max' ? 'lower in every direction: it looks like a maximum' : seen === 'saddle' ? 'higher in some directions and lower in others: it looks like a saddle point' : 'about the same') + (verdicts[idx].kind === 'none' ? ' (the test could not tell).' : agrees ? ' ✓' : ' ✗') };
           });
           const allOK = lines.every(l => l.ok && l.agrees);
-          out.append(K.card('Check', K.steps(lines.map(l => ({ text: l.text }))), K.note(allOK ? 'Every point solves $\\nabla f = 0$ and looks the way the test says ✓' : 'Some check failed ✗', allOK ? 'good' : 'warn')));
+          out.append(K.card('Check', flowSteps(lines.map(l => ({ text: l.text }))), K.note(allOK ? 'Every point solves $\\nabla f = 0$ and looks the way the test says ✓' : 'Some check failed ✗', allOK ? 'good' : 'warn')));
         }
       }
     },
@@ -2455,6 +2519,8 @@
     const exact = vars.every((v, i) => vals[slots[i]].q);
     const Hv = H.map(row => row.map(g => (exact ? valueAt(g, pt) : { q: null, x: compile(g)(Object.fromEntries(vars.map((v, i) => [v, vNum(vals[slots[i]])]))), t: null })));
     const e = (i, j) => Hv[i][j], E = (i, j) => facT(e(i, j), o.dec), pr = (i, j, k, l) => E(i, j) + ' \\cdot ' + E(k, l);
+    // brackets of a fixed size, so that a long expansion can break inside them on a phone (\left( … \right) cannot)
+    const br = x => (/\\frac/.test(x) ? '\\biggl(' + x + '\\biggr)' : '\\bigl(' + x + '\\bigr)');
     const sub = (p, q) => (p.q && q.q ? { q: p.q.sub(q.q) } : { q: null, x: vNum(p) - vNum(q) });
     const mulv = (p, q) => (p.q && q.q ? { q: p.q.mul(q.q) } : { q: null, x: vNum(p) * vNum(q) });
     const sgn = v => { const x = vNum(v); return v.q ? v.q.cmp(0) : Math.abs(x) < 1e-9 ? 0 : x > 0 ? 1 : -1; };
@@ -2477,7 +2543,7 @@
       const D3 = t1.q && t2.q && t3.q ? { q: t1.q.sub(t2.q).add(t3.q) } : { q: null, x: vNum(t1) - vNum(t2) + vNum(t3) };
       steps.push({ text: 'The top-left $1 \\times 1$ determinant:', tex: 'D_1 = f_{xx} = ' + fin(D1) });
       steps.push({ text: 'The top-left $2 \\times 2$ determinant:', tex: 'D_2 = f_{xx}f_{yy} - f_{xy}^2 = ' + pr(0, 0, 1, 1) + ' - ' + E(0, 1) + '^2 = ' + fin(D2) });
-      steps.push({ text: 'The whole determinant, expanded along the first row:', tex: 'D_3 = ' + E(0, 0) + '\\left(' + pr(1, 1, 2, 2) + ' - ' + pr(1, 2, 2, 1) + '\\right) - ' + E(0, 1) + '\\left(' + pr(1, 0, 2, 2) + ' - ' + pr(1, 2, 2, 0) + '\\right) + ' + E(0, 2) + '\\left(' + pr(1, 0, 2, 1) + ' - ' + pr(1, 1, 2, 0) + '\\right) = ' + E(0, 0) + ' \\cdot ' + facT(m1, o.dec) + ' - ' + E(0, 1) + ' \\cdot ' + facT(m2, o.dec) + ' + ' + E(0, 2) + ' \\cdot ' + facT(m3, o.dec) + ' = ' + fin(D3) });
+      steps.push({ text: 'The whole determinant, expanded along the first row:', tex: 'D_3 = ' + E(0, 0) + br(pr(1, 1, 2, 2) + ' - ' + pr(1, 2, 2, 1)) + ' - ' + E(0, 1) + br(pr(1, 0, 2, 2) + ' - ' + pr(1, 2, 2, 0)) + ' + ' + E(0, 2) + br(pr(1, 0, 2, 1) + ' - ' + pr(1, 1, 2, 0)) + ' = ' + E(0, 0) + ' \\cdot ' + facT(m1, o.dec) + ' - ' + E(0, 1) + ' \\cdot ' + facT(m2, o.dec) + ' + ' + E(0, 2) + ' \\cdot ' + facT(m3, o.dec) + ' = ' + fin(D3) });
       const s1 = sgn(D1), s2 = sgn(D2), s3 = sgn(D3), sg = x => (x > 0 ? '+' : x < 0 ? '-' : '0');
       if (s3 === 0) kind = 'none';
       else if (s1 > 0 && s2 > 0 && s3 > 0) kind = 'min';

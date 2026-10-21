@@ -169,16 +169,17 @@ a.wk-a:hover { text-decoration: none; border-color: var(--accent-line); }
 .doc strong { font-weight: 700; }
 .doc hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
 .doc blockquote { margin: 1em 0; padding: .4em 1em; border-left: 3px solid var(--accent-line); color: var(--ink-2); }
-.doc code { font-family: var(--mono); font-size: .86em; background: var(--bg-sunk-2); padding: .1em .35em; border-radius: 6px; }
+.doc code, .fm-item code { font-family: var(--mono); font-size: .86em; background: var(--bg-sunk-2); padding: .1em .35em; border-radius: 6px; }
 /* inline code keeps the spaces of an output and wraps only at a space or a point build.mjs marks (<wbr> after a dot,
    comma or bracket; a <span> stays on one line). In a table a name never splits, so the table cannot squeeze a column
    until `float` breaks into `floa` / `t` (a table too wide for a phone swipes in its box); in ordinary text a name
-   longer than the whole line still wraps rather than push the page sideways */
-.doc :not(pre) > code { white-space: pre-wrap; overflow-wrap: anywhere; }
-.doc :not(pre) > code > span { white-space: nowrap; }
-.doc table code { overflow-wrap: break-word; }
-.nw, .nwp { white-space: nowrap; }  /* an inline formula with its punctuation (build.mjs) */
-.nwp > .katex { white-space: normal; }  /* a longer formula may still break between its parts */
+   longer than the whole line still wraps rather than push the page sideways. The Formulas page (.fm-item) shows the
+   formula boxes outside .doc, with the same code style */
+.doc :not(pre) > code, .fm-item :not(pre) > code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.doc :not(pre) > code > span, .fm-item :not(pre) > code > span { white-space: nowrap; }
+.doc table code, .fm-item table code { overflow-wrap: break-word; }
+.nw, .nwp { white-space: nowrap; }  /* an inline formula with the text glued to it (build.mjs) */
+.nwp > .katex { white-space: normal; }  /* a longer formula may break between its parts; its last part sits in a .nw with the "." after it */
 .doc pre.code { margin: 1em 0; padding: 14px 16px; border-radius: 12px; background: var(--bg-sunk); border: 1px solid var(--line); overflow-x: auto; font-size: .86em; line-height: 1.55; }
 .doc pre.code code { background: none; padding: 0; font-size: 1em; }
 .doc .tbl { overflow-x: auto; margin: 1em 0; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-elev); }
@@ -292,6 +293,7 @@ a.lablink { color: var(--pick); font-weight: 600; }
   .doc h2 { font-size: 1.42em; }
   .box-b { padding: 4px 14px 12px; }
   .box-h { padding: 10px 14px 0; }
+  .doc th, .doc td { padding: 8px 10px; }
   .wk-a { grid-template-columns: 36px minmax(0, 1fr) 20px; gap: 12px; padding: 12px; }
   .wk-n { width: 36px; height: 36px; }
   .pager { grid-template-columns: 1fr; }

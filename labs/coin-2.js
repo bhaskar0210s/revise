@@ -6,6 +6,73 @@
   'use strict';
   const K = REV.kit;
   const { F, T, h } = K;
+  /** a table whose first column shows pictures: K.table's cells go through the kit's text cleaner, which shows an <svg>
+      as its source text, so the cells start as plain text and the coins are put in afterwards */
+  const picColumn = (tbl, pics) => { tbl.querySelectorAll('tbody tr').forEach((tr, i) => { tr.cells[0].innerHTML = pics[i]; }); return tbl; };
+
+  /* Maths a phone can wrap. The kit wraps a chain after =, + or × on a narrow phone, but shows an aligned block, or any
+     formula with a matrix, as one display that can only scroll sideways. flow() gives each row of an aligned block a
+     line of its own (a row that goes on with + or − joins the line before; one that goes on with = is indented), sets
+     a formula with a matrix inline so that it can break between the matrices, and lets a list break after a comma
+     outside brackets. flowSteps and flowAnswer are K.steps and K.answer with flow() for the maths. */
+  const { flow, flowSteps, flowAnswer } = (() => {
+    const TOK = /\\(?:begin|end)\{[^}]*\}|\\[A-Za-z]+|\\.|[\s\S]/y;
+    const toks = s => { const a = []; for (TOK.lastIndex = 0; TOK.lastIndex < s.length;) a.push(TOK.exec(s)[0]); return a; };
+    const depth = t => (t === '{' || t === '\\left' || t.startsWith('\\begin') ? 1 : t === '}' || t === '\\right' || t.startsWith('\\end') ? -1 : 0);
+    const LEAD = /^(?:\s|~|\\(?:quad|qquad|[,;: ]))+/, BIN = /^(?:[+−-]|\\(?:times|cdot|pm|mp|div)(?![A-Za-z]))/;
+    const REL = /^(?:[=<>]|\\(?:approx|le|leq|ge|geq|ne|neq|equiv|sim|to|Rightarrow|Longrightarrow|longrightarrow|iff|implies)(?![A-Za-z]))/;
+    function lines(src) {
+      const tk = toks(String(src)), out = [];
+      let pre = '', d = 0, i = 0;
+      while (i < tk.length) {
+        let t = tk[i++];
+        if (t !== '\\begin{aligned}' || d) { d += depth(t); pre += t; continue; }
+        if (pre.trim()) out.push(pre.trim());
+        pre = '';
+        const rows = [[]];
+        let cell = '', e = 0;
+        for (; i < tk.length; i++) {
+          t = tk[i];
+          if (!e && t === '\\end{aligned}') { i++; break; }
+          if (!e && t === '\\\\') {                                 // a new row; skip a spacing like \\[4pt]
+            rows[rows.length - 1].push(cell); rows.push([]); cell = '';
+            let k = i + 1;
+            while (k < tk.length && /^\s$/.test(tk[k])) k++;
+            if (tk[k] === '[') { while (k < tk.length && tk[k] !== ']') k++; i = k; }
+            continue;
+          }
+          if (!e && t === '&') { rows[rows.length - 1].push(cell); cell = ''; continue; }
+          e += depth(t);
+          cell += t;
+        }
+        rows[rows.length - 1].push(cell);
+        for (const c of rows) {
+          if (!c.join('').trim()) continue;
+          if (c.length > 2) { for (let k = 0; k < c.length; k += 2) { const p = (c[k] + ' ' + (c[k + 1] || '')).replace(LEAD, '').trim(); if (p) out.push(p); } continue; }
+          const go = c.length === 2 && !c[0].trim() ? c[1].replace(LEAD, '').trim() : null;
+          if (go && BIN.test(go) && out.length) out[out.length - 1] += ' ' + go;
+          else out.push(go && REL.test(go) ? '\\quad ' + go : c.join(' ').trim());
+        }
+        while (i < tk.length && LEAD.test(tk[i])) i++;
+      }
+      if (pre.trim()) out.push(pre.trim());
+      return out.map(line => {
+        let s = '', b = 0, e = 0;
+        for (const t of toks(line)) {
+          if (t === '(' || t === '[') b++; else if (t === ')' || t === ']') b--; else e += depth(t);
+          s += t + (t === ',' && !b && !e ? '\\allowbreak ' : '');
+        }
+        return s;
+      });
+    }
+    // a little room above and below each unbreakable piece, so that tall fractions on wrapped lines do not touch
+    const flow = tex => lines(tex).map(l => '<span class="lk-wrap">' + K.kx('\\displaystyle ' + l, false).replace(/<span class="base">/g, '<span class="base" style="margin: .15em 0">') + '</span>').join('');
+    return {
+      flow,
+      flowSteps: list => h('ol', { class: 'lk-steps' }, list.map(x => h('li', {}, x.text ? h('div', { class: 'lk-step-t', html: K.rich(x.text) }) : null, x.tex ? h('div', { class: 'lk-step-m', html: flow(x.tex) }) : null))),
+      flowAnswer: (label, tex, note) => h('div', { class: 'lk-answer' }, h('div', { class: 'lk-answer-k', html: K.rich(label) }), h('div', { class: 'lk-answer-v', html: flow(tex) }), note ? h('div', { class: 'lk-answer-n', html: K.rich(note) }) : null),
+    };
+  })();
   const S = (tag, attrs, ...kids) => K.sv(tag, attrs, ...kids);
   const mi = tex => K.kx(tex, false);                      // inline maths inside raw HTML (grid cells, legends)
 
@@ -166,7 +233,7 @@
     h('div', { class: 'lk-presets' }, list.map(([label, values]) => h('button', { type: 'button', class: 'lk-chip', html: K.rich(label), onclick: () => load(values) }))));
 
   /** the kit's answer box, allowed to be narrower than its maths (which then scrolls inside it) */
-  const answer = (...args) => { const el = K.answer(...args); el.style.minWidth = '0'; return el; };
+  const answer = (...args) => { const el = flowAnswer(...args); el.style.minWidth = '0'; return el; };
 
   /** X = heads in the first a of n tosses, Y = heads in the last b: every outcome, the joint table P[x][y], both marginals */
   function jointOf(n, a, b, p) {
@@ -263,7 +330,7 @@
         // every outcome, and the cell asked about
         const inCell = J.outs.filter(r => r.x === x && r.y === y), ex = inCell[0] || J.outs[Math.min(2, J.outs.length - 1)], k = heads(ex.o);
         out.append(K.card('Every outcome, with its $X$ and $Y$',
-          K.steps([
+          flowSteps([
             { text: 'There are $2^{' + n + '} = ' + 2 ** n + '$ outcomes. The tosses do not affect each other, so multiply: an outcome with $k$ heads has chance $p^k(1-p)^{' + n + '-k}$.' + (p.eq(F(1, 2)) ? ' With a fair coin every outcome has the same chance.' : ''),
               tex: 'P(\\text{' + ex.o + '}) = \\left(' + T(p) + '\\right)^{' + k + '}\\left(' + T(J.q) + '\\right)^{' + (n - k) + '} ' + eq(ex.pr) },
             { text: 'Read $X$ and $Y$ off each outcome. In <b>' + ex.o + '</b> the first ' + a + ' tosses, <b>' + ex.o.slice(0, a) + '</b>, have ' + ex.x + ' head' + (ex.x === 1 ? '' : 's') + '; the last ' + b + ', <b>' + ex.o.slice(n - b) + '</b>, have ' + ex.y + '.',
@@ -273,8 +340,8 @@
                 : { text: 'The outcomes with $X = ' + x + '$ and $Y = ' + y + '$ are coloured in the table: ' + inCell.map(r => '<b>' + r.o + '</b>').join(', ') + '. They cannot happen together, so add their chances:',
                   tex: chain('P(X=' + x + ',\\ Y=' + y + ')', '= ' + inCell.map(r => T(r.pr)).join(' + '), eq(cell)) },
           ]),
-          K.table(['Outcome', 'Chance', '$X$', '$Y$'], J.outs.map(r => [coins(r.o, 18), '$' + TT(r.pr) + '$', String(r.x), String(r.y)]),
-            { compact: true, hi: new Set(J.outs.map((r, i) => (r.x === x && r.y === y ? i : -1)).filter(i => i >= 0)) })));
+          picColumn(K.table(['Outcome', 'Chance', '$X$', '$Y$'], J.outs.map(r => [r.o, '$' + TT(r.pr) + '$', String(r.x), String(r.y)]),
+            { compact: true, hi: new Set(J.outs.map((r, i) => (r.x === x && r.y === y ? i : -1)).filter(i => i >= 0)) }), J.outs.map(r => coins(r.o, 18)))));
 
         // the joint table with both marginals
         out.append(K.card('The joint table',
@@ -289,7 +356,7 @@
 
         const bx = K.C(a, x).mul(p.pow(x)).mul(J.q.pow(a - x)), by = K.C(b, y).mul(p.pow(y)).mul(J.q.pow(b - y));
         out.append(K.card('Marginals: add a column, add a row',
-          K.steps([
+          flowSteps([
             { text: '$P(X = ' + x + ')$: add down the column $x = ' + x + '$.', tex: chain('P(X=' + x + ')', '= ' + ys.map(j => T(J.P[x][j])).join(' + '), eq(J.px[x])) },
             { text: '$P(Y = ' + y + ')$: add along the row $y = ' + y + '$.', tex: chain('P(Y=' + y + ')', '= ' + xs.map(i => T(J.P[i][y])).join(' + '), eq(py)) },
             { text: 'Check with the binomial: $X$ counts the heads in ' + a + ' independent tosses, so $X \\sim \\Bin(' + a + ', ' + T(p) + ')$; in the same way $Y \\sim \\Bin(' + b + ', ' + T(p) + ')$.',
@@ -301,7 +368,7 @@
         if (cond) {
           const ca = xs.map(i => J.P[i][y].div(py)), same = xs.every(i => ca[i].eq(J.px[i]));
           out.append(K.card('Conditional distribution of $X$ given $Y = ' + y + '$',
-            K.steps([
+            flowSteps([
               { text: 'Knowing $Y = ' + y + '$ keeps only the row $y = ' + y + '$ of the table. The row\'s total chance is $P(Y = ' + y + ')$:', tex: 'P(Y=' + y + ') ' + eq(py) },
               { text: 'Divide each cell of that row by its total, so that the new chances add up to 1:', tex: chain('P(X=' + x + ' \\mid Y=' + y + ')', '= \\frac{P(X=' + x + ',\\ Y=' + y + ')}{P(Y=' + y + ')}', '= \\frac{' + TT(cell) + '}{' + TT(py) + '}', eq(cond)) },
               { text: 'Check: the whole conditional distribution adds up to 1.', tex: ca.map(T).join(' + ') + ' = ' + T(sum(ca)) },
@@ -319,7 +386,7 @@
             const ok = J.P[j][i].eq(prod(j, i));
             return { html: mi(TT(J.P[j][i])) + '<br>' + mi(TT(prod(j, i))) + ' ' + (ok ? '✓' : '✗'), hi: !ok };
           }, { corner: '$Y \\backslash X$' }),
-          K.steps([
+          flowSteps([
             { text: (bad.length ? 'Take a failing cell, $x = ' : 'Take the cell $x = ') + bi + ', y = ' + bj + '$. Multiply its two marginals:', tex: 'P(X=' + bi + ')\\,P(Y=' + bj + ') = ' + T(J.px[bi]) + ' \\times ' + T(J.py[bj]) + ' = ' + T(prod(bi, bj)) },
             { text: 'Compare with the cell itself:', tex: 'P(X=' + bi + ',\\ Y=' + bj + ') = ' + T(J.P[bi][bj]) + (okB ? ' = ' : ' \\ne ') + T(prod(bi, bj)) },
             { text: bad.length ? bad.length + ' of the ' + (a + 1) * (b + 1) + ' cells fail (marked ✗). One failing cell is enough: $X$ and $Y$ are <b>not independent</b>.'
@@ -378,7 +445,7 @@
 
         const terms = (vals, w) => vals.map((v, i) => w(i) + ' \\cdot ' + T(v)).join(' + ');
         out.append(K.card('Step by step from the table',
-          K.steps([
+          flowSteps([
             { text: '$\\E[X]$: each value of $X$ times its chance (the bottom row of the joint table), added up.', tex: chain('\\E[X]', '= ' + terms(J.px, i => i), eq(EX)) },
             { text: '$\\E[Y]$: the same with the right column.', tex: chain('\\E[Y]', '= ' + terms(J.py, j => j), eq(EY)) },
             { text: '$\\E[XY]$: every cell, $x \\cdot y$ times its chance. Cells with $x = 0$ or $y = 0$ add nothing, so ' + cells.length + ' cell' + (cells.length === 1 ? '' : 's') + ' count.',
@@ -399,7 +466,7 @@
 
         const pq = p.mul(q), viaM = pq.mul(m), rab = sqrtF(F(a * b));
         out.append(K.card('Why sharing tosses makes them move together',
-          K.steps([
+          flowSteps([
             { text: 'Write each toss as $Z_i = 1$ for heads and $0$ for tails. Each count is a sum of tosses:', tex: '\\begin{aligned} X &= ' + zsum(1, a) + ' \\\\ Y &= ' + zsum(n - b + 1, n) + '\\end{aligned}' },
             { text: 'Covariance splits over sums, one pair of tosses at a time:', tex: '\\Cov(X, Y) = \\sum_{i=1}^{' + a + '}\\ \\sum_{j=' + (n - b + 1) + '}^{' + n + '} \\Cov(Z_i, Z_j)' },
             { text: 'Two different tosses are independent, so their covariance is 0. A toss paired with itself gives its variance:', tex: '\\Cov(Z_i, Z_i) = \\Var(Z_i) = p(1-p) = ' + T(p) + ' \\times ' + T(q) + ' = ' + T(pq) },
@@ -480,7 +547,7 @@
 
         const bound = pq.mul(400).div(N);
         out.append(K.card('Why the proportion settles',
-          K.steps([
+          flowSteps([
             { text: 'Write each toss as $X_i = 1$ for heads and $0$ for tails. The proportion is the average of the tosses:', tex: '\\hat p_{N} = \\frac{X_1 + \\dots + X_N}{N} = ' + ratioTex(hN, N) },
             { text: 'Its distance from $p$ now:', tex: '|\\hat p_{N} - p| = \\left|' + tx(prop) + ' - ' + T(p) + '\\right| ' + eq(ad) },
             { text: 'One toss has mean $p$ and variance $p(1-p)$. An average of $N$ independent tosses keeps the mean:', tex: '\\E[\\hat p_N] = p = ' + T(p) },
@@ -556,7 +623,7 @@
         const terms = cnt <= 4 ? range(a, b).map(k => dx(B.pk(k))).join(' + ') : null;
         const big1 = (lo === -Infinity ? '-\\infty' : dx(lo)), big2 = (hi === Infinity ? '\\infty' : dx(hi));
         out.append(K.card('Exact, then by the normal curve',
-          K.steps([
+          flowSteps([
             { text: 'The mean of the binomial:', tex: '\\mu = np = ' + n + ' \\times ' + T(p) + ' ' + eq(mu) },
             { text: 'Its variance:', tex: chain('\\sigma^2 = np(1-p)', '= ' + n + ' \\times ' + T(p) + ' \\times ' + T(q), eq(v2)) },
             { text: 'Its standard deviation:', tex: '\\sigma = \\sqrt{' + tx(v2) + '} \\approx ' + dx(sd) },
@@ -624,7 +691,7 @@
         else {
           const mt = F(m).mul(t);
           out.append(K.card('Step by step, with $m = ' + big(m) + '$ tosses per second',
-            K.steps([
+            flowSteps([
               { text: 'The chance of heads on each toss:', tex: 'p = \\frac{\\lambda}{m} = \\frac{' + T(lam) + '}{' + big(m) + '} ' + eq(R.p) },
               { text: 'Tosses come at $\\frac1m, \\frac2m, \\frac3m, \\dots$ seconds, so by time $t$ there have been $\\lfloor mt \\rfloor$ of them (the whole-number part of $mt$):',
                 tex: '\\lfloor mt \\rfloor = \\lfloor ' + big(m) + ' \\times ' + T(t) + ' \\rfloor = ' + (mt.isInt() ? '' : '\\lfloor ' + dx(val(mt)) + ' \\rfloor = ') + R.k },
@@ -662,7 +729,7 @@
           K.p('With few tosses per second the chance drops in big steps, once per toss. With many tosses the steps become tiny and the staircase melts into the smooth curve $e^{-\\lambda s}$.')));
 
         out.append(K.card('Check: the average wait is $1/\\lambda$ for every $m$',
-          K.steps([
+          flowSteps([
             { text: 'The number of tosses up to the first head is geometric, with mean $1/p$:', tex: '\\E[\\text{tosses}] = \\frac{1}{p} = \\frac{m}{\\lambda}' },
             { text: 'Each toss takes $\\frac1m$ of a second, so the mean waiting time is', tex: '\\E[T] = \\frac{1}{m} \\cdot \\frac{m}{\\lambda} = \\frac{1}{\\lambda} = \\frac{1}{' + T(lam) + '} ' + eq(F(1).div(lam)) + '\\text{ s}' },
             { text: 'The $m$ cancels, so it is the same for every $m$, and it matches the mean of $\\Exp(\\lambda)$, which is $\\frac{1}{\\lambda}$. ✓' },
@@ -722,7 +789,7 @@
           K.p('Write each toss as $x_i = 1$ for heads and $x_i = 0$ for tails. Then $n = ' + big(n) + '$, the number of heads is $h = \\sum x_i = ' + big(h) + '$ and the number of tails is $t = n - h = ' + big(t) + '$.')));
 
         out.append(K.card('Method of moments',
-          K.steps([
+          flowSteps([
             { text: 'One toss of the model is 1 with chance $p$ and 0 with chance $1-p$. Its mean, the first moment, is', tex: '\\E[X_i] = 1 \\cdot p + 0 \\cdot (1-p) = p' },
             { text: 'The same moment from your data is the sample mean:', tex: '\\bar x = \\frac{x_1 + \\dots + x_n}{n} = ' + ratioTex(h, n) },
             { text: 'Method of moments: set the model\'s moment equal to the data\'s moment, and solve for $p$:', tex: '\\hat p_{\\text{MME}} = \\bar x = ' + ratioTex(h, n) },
@@ -750,13 +817,13 @@
         const yb = f.Y(ymax * 0.06);
         f.svg.append(S('path', { d: 'M' + f.X(lo) + ' ' + (yb - 5) + 'v10M' + f.X(lo) + ' ' + yb + 'H' + f.X(hi) + 'M' + f.X(hi) + ' ' + (yb - 5) + 'v10', style: 'stroke: var(--z); stroke-width: 2.5; fill: none' }, S('title', {}, c + '% interval')));
         out.append(K.card('Maximum likelihood',
-          K.steps(ml),
+          flowSteps(ml),
           f.wrap,
           legend([['var(--accent)', 'the likelihood $L(p) = p^{' + h + '}(1-p)^{' + t + '}$' + (rel ? ', divided by its peak' : ''), 'line'], ['var(--pick)', 'its peak, at $\\hat p ' + eq(ph) + '$', 'dash'], ['var(--z)', 'the ' + c + '% interval', 'line']]),
           K.p(rel ? 'With this many tosses $L(p)$ is far too small to draw as it is, so the curve shows $L(p)$ divided by its peak value. The shape, and the peak, are the same.' : 'The curve is highest at $\\hat p$: no other value of $p$ makes your tosses as likely.')));
 
         out.append(K.card('An approximate ' + c + '% confidence interval',
-          K.steps([
+          flowSteps([
             { text: 'For many tosses, $\\hat p$ is close to normal with mean $p$ and variance $\\frac{p(1-p)}{n}$ (central limit theorem). Put $\\hat p$ in place of the unknown $p$ to get the <b>standard error</b>:',
               tex: chain('\\text{SE}', '= \\sqrt{\\frac{\\hat p(1 - \\hat p)}{n}}', '= \\sqrt{\\frac{' + dx(pv) + ' \\times ' + dx(1 - pv) + '}{' + big(n) + '}}', '\\approx ' + dx(se)) },
             { text: 'For ' + c + '%, take the $z$ that leaves ' + c + '% of the normal curve between $-z$ and $z$, so that $\\Phi(z) = ' + (0.5 + c / 200) + '$:', tex: 'z = \\Phi^{-1}(' + (0.5 + c / 200) + ') \\approx ' + z.toFixed(4) },
@@ -823,7 +890,7 @@
             { text: 'and', tex: chain('w \\cdot \\tfrac{a}{a+b} + (1 - w)\\,\\hat p_{\\text{ML}}', '= ' + tx(w) + ' \\times ' + tx(pm0) + ' + ' + tx(F(1).sub(w)) + ' \\times ' + tx(mle), eq(mix) + (mix.eq(pm) ? '\\ \\checkmark' : '')) });
         }
         st.push({ text: 'How sure the posterior is: its standard deviation. It shrinks as you toss more.', tex: '\\SD = \\sqrt{\\frac{\\alpha\\beta}{(\\alpha + \\beta)^2(\\alpha + \\beta + 1)}} \\approx ' + dx(sd) });
-        out.append(K.card('From prior to posterior', K.steps(st),
+        out.append(K.card('From prior to posterior', flowSteps(st),
           K.p('The prior counts like $a + b = ' + tx(ab) + '$ extra tosses. With many real tosses its weight $w$ goes to 0, and the posterior mean comes close to $\\hat p_{\\text{ML}}$ (Stats 2 Week 10.2).')));
 
         // the two densities, with the mean, the mode and the MLE
@@ -903,7 +970,7 @@
           ? chain('\\text{p-value}', '= 2\\,\\bigl(1 - \\Phi(|z|)\\bigr)', '= 2\\,\\bigl(1 - \\Phi(' + dx(Math.abs(z)) + ')\\bigr)', '= 2 \\times ' + dx(Phi(-Math.abs(z))), '\\approx ' + dx(pz))
           : alt === 'gt' ? chain('\\text{p-value}', '= P(Z \\ge z) = 1 - \\Phi(' + dx(z) + ')', '\\approx ' + dx(pz)) : chain('\\text{p-value}', '= P(Z \\le z) = \\Phi(' + dx(z) + ')', '\\approx ' + dx(pz));
         out.append(K.card('The $z$-test, step by step',
-          K.steps([
+          flowSteps([
             { text: 'If $H_0$ is true, the number of heads is $X \\sim \\Bin(n, p_0)$. Its mean:', tex: '\\mu_0 = np_0 = ' + n + ' \\times ' + T(p0) + ' ' + eq(mu0) },
             { text: 'and its standard deviation:', tex: chain('\\sigma_0 = \\sqrt{np_0(1-p_0)}', '= \\sqrt{' + n + ' \\times ' + T(p0) + ' \\times ' + T(q0) + '}', '= \\sqrt{' + tx(v0) + '} \\approx ' + dx(sd0)) },
             { text: 'The $z$-statistic: how many standard deviations $h$ lies from $\\mu_0$.', tex: 'z = \\frac{h - \\mu_0}{\\sigma_0} = \\frac{' + h + ' - ' + dx(m0) + '}{' + dx(sd0) + '} \\approx ' + dx(z) },
@@ -920,7 +987,7 @@
           { text: 'For $p \\ne p_0$ one common way is to double the smaller tail (at most 1):', tex: chain('\\text{exact p-value}', '= \\min\\bigl(1,\\ 2 \\times ' + dx(Math.min(val(up), val(down))) + '\\bigr)', '\\approx ' + dx(pexN)) },
         ] : [{ text: 'The normal curve is an approximation. The exact p-value adds binomial chances under $H_0$:', tex: chain(alt === 'gt' ? 'P(X \\ge ' + h + ')' : 'P(X \\le ' + h + ')', alt === 'gt' ? '= \\sum_{k=' + h + '}^{' + n + '} \\tbinom{' + n + '}{k} p_0^k (1-p_0)^{' + n + '-k}' : '= \\sum_{k=0}^{' + h + '} \\tbinom{' + n + '}{k} p_0^k (1-p_0)^{' + n + '-k}', eq(pex)) }];
         exactSteps.push({ text: reject === exReject ? 'Both give the same decision at $\\alpha = ' + dx(A) + '$.' : 'Here they disagree at $\\alpha = ' + dx(A) + '$: the normal curve ' + (reject ? 'rejects' : 'does not reject') + ', the exact count ' + (exReject ? 'rejects' : 'does not') + '. With few tosses or a lopsided $p_0$, trust the exact one.' });
-        out.append(K.card('The exact binomial tail', K.steps(exactSteps)));
+        out.append(K.card('The exact binomial tail', flowSteps(exactSteps)));
 
         // the binomial bars under H0 with the rejection region and the count seen
         const wlo = Math.max(0, Math.min(h, Math.floor(m0 - 5 * sd0))), whi = Math.min(n, Math.max(h, Math.ceil(m0 + 5 * sd0)));
