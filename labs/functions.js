@@ -1006,7 +1006,7 @@
     if (rr.big) st.push({ text: 'The numbers are too large to try every rational candidate, so the zeros are found numerically.' });
     else if (rr.ints) {
       const a0 = rr.ints[0], aN = rr.ints[rr.ints.length - 1], pos = rr.cands.filter(c => !neg(c));
-      st.push({ text: 'The <b>rational root test</b>: a fraction $\\frac{u}{w}$ in lowest terms can be a zero only if $u$ divides the constant term $' + a0 + '$ and $w$ divides the leading coefficient $' + aN + '$. The candidates:', tex: pos.length <= 16 ? '\\pm ' + pos.map(c => T(c)).join(',\\allowbreak\\ \\pm ') : '\\pm ' + pos.slice(0, 12).map(c => T(c)).join(',\\allowbreak\\ \\pm ') + ',\\allowbreak\\ \\dots\\ (' + rr.cands.length + '\\text{ in all})' });
+      st.push({ text: 'The <b>rational root test</b>: a fraction $\\frac{u}{w}$ in lowest terms can be a zero only if $u$ divides the constant term $' + a0 + '$ and $w$ divides the leading coefficient $' + aN + '$. The candidates:', tex: pos.length <= 16 ? '\\pm ' + pos.map(c => T(c)).join(',\\ \\pm ') : '\\pm ' + pos.slice(0, 12).map(c => T(c)).join(',\\ \\pm ') + ',\\ \\dots\\ (' + rr.cands.length + '\\text{ in all})' });
       const found = rr.roots.filter(o => !o.r.isZero());
       st.push({ text: found.length ? 'Putting each candidate in, these give $0$. Dividing by $(x - r)$ again and again shows how often each one goes in, its <b>multiplicity</b>:' : 'None of the candidates gives $0$: there is no rational zero' + (rr.zero ? ' apart from $0$.' : '.'), tex: found.length ? found.map(o => name + '\\mathopen{}\\left(' + T(o.r) + '\\right) = 0' + (o.m > 1 ? '\\ (\\times ' + o.m + ')' : '')).join(',\\quad ') : null });
     }

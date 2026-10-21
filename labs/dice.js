@@ -8,70 +8,6 @@
   const K = REV.kit;
   const { F, TD, h } = K;
 
-  /* Maths a phone can wrap. The kit wraps a chain after =, + or × on a narrow phone, but shows an aligned block, or any
-     formula with a matrix, as one display that can only scroll sideways. flow() gives each row of an aligned block a
-     line of its own (a row that goes on with + or − joins the line before; one that goes on with = is indented), sets
-     a formula with a matrix inline so that it can break between the matrices, and lets a list break after a comma
-     outside brackets. flowSteps and flowAnswer are K.steps and K.answer with flow() for the maths. */
-  const { flow, flowSteps, flowAnswer } = (() => {
-    const TOK = /\\(?:begin|end)\{[^}]*\}|\\[A-Za-z]+|\\.|[\s\S]/y;
-    const toks = s => { const a = []; for (TOK.lastIndex = 0; TOK.lastIndex < s.length;) a.push(TOK.exec(s)[0]); return a; };
-    const depth = t => (t === '{' || t === '\\left' || t.startsWith('\\begin') ? 1 : t === '}' || t === '\\right' || t.startsWith('\\end') ? -1 : 0);
-    const LEAD = /^(?:\s|~|\\(?:quad|qquad|[,;: ]))+/, BIN = /^(?:[+−-]|\\(?:times|cdot|pm|mp|div)(?![A-Za-z]))/;
-    const REL = /^(?:[=<>]|\\(?:approx|le|leq|ge|geq|ne|neq|equiv|sim|to|Rightarrow|Longrightarrow|longrightarrow|iff|implies)(?![A-Za-z]))/;
-    function lines(src) {
-      const tk = toks(String(src)), out = [];
-      let pre = '', d = 0, i = 0;
-      while (i < tk.length) {
-        let t = tk[i++];
-        if (t !== '\\begin{aligned}' || d) { d += depth(t); pre += t; continue; }
-        if (pre.trim()) out.push(pre.trim());
-        pre = '';
-        const rows = [[]];
-        let cell = '', e = 0;
-        for (; i < tk.length; i++) {
-          t = tk[i];
-          if (!e && t === '\\end{aligned}') { i++; break; }
-          if (!e && t === '\\\\') {                                 // a new row; skip a spacing like \\[4pt]
-            rows[rows.length - 1].push(cell); rows.push([]); cell = '';
-            let k = i + 1;
-            while (k < tk.length && /^\s$/.test(tk[k])) k++;
-            if (tk[k] === '[') { while (k < tk.length && tk[k] !== ']') k++; i = k; }
-            continue;
-          }
-          if (!e && t === '&') { rows[rows.length - 1].push(cell); cell = ''; continue; }
-          e += depth(t);
-          cell += t;
-        }
-        rows[rows.length - 1].push(cell);
-        for (const c of rows) {
-          if (!c.join('').trim()) continue;
-          if (c.length > 2) { for (let k = 0; k < c.length; k += 2) { const p = (c[k] + ' ' + (c[k + 1] || '')).replace(LEAD, '').trim(); if (p) out.push(p); } continue; }
-          const go = c.length === 2 && !c[0].trim() ? c[1].replace(LEAD, '').trim() : null;
-          if (go && BIN.test(go) && out.length) out[out.length - 1] += ' ' + go;
-          else out.push(go && REL.test(go) ? '\\quad ' + go : c.join(' ').trim());
-        }
-        while (i < tk.length && LEAD.test(tk[i])) i++;
-      }
-      if (pre.trim()) out.push(pre.trim());
-      return out.map(line => {
-        let s = '', b = 0, e = 0;
-        for (const t of toks(line)) {
-          if (t === '(' || t === '[') b++; else if (t === ')' || t === ']') b--; else e += depth(t);
-          s += t + (t === ',' && !b && !e ? '\\allowbreak ' : '');
-        }
-        return s;
-      });
-    }
-    // a little room above and below each unbreakable piece, so that tall fractions on wrapped lines do not touch
-    const flow = tex => lines(tex).map(l => '<span class="lk-wrap">' + K.kx('\\displaystyle ' + l, false).replace(/<span class="base">/g, '<span class="base" style="margin: .15em 0">') + '</span>').join('');
-    return {
-      flow,
-      flowSteps: list => h('ol', { class: 'lk-steps' }, list.map(x => h('li', {}, x.text ? h('div', { class: 'lk-step-t', html: K.rich(x.text) }) : null, x.tex ? h('div', { class: 'lk-step-m', html: flow(x.tex) }) : null))),
-      flowAnswer: (label, tex, note) => h('div', { class: 'lk-answer' }, h('div', { class: 'lk-answer-k', html: K.rich(label) }), h('div', { class: 'lk-answer-v', html: flow(tex) }), note ? h('div', { class: 'lk-answer-n', html: K.rich(note) }) : null),
-    };
-  })();
-
   /* ================================================================ numbers */
   const FACES = [4, 6, 8, 10, 12, 20];
   const facesOf = v => (FACES.includes(+v) ? +v : 6);
@@ -169,8 +105,7 @@
         .map(([label, w]) => h('button', { type: 'button', class: 'lk-chip', text: label, onclick: () => { s.set({ w }, true); redo(); } }))));
   }
 
-  const { table, bars } = K;
-  const steps = flowSteps, answer = flowAnswer;
+  const { table, steps, answer, bars } = K;
 
   /* ================================================================ drawings */
   const diceRow = (vals, f, max = 120) => h('div', {}, h('div', { class: 'lk-outcomes', html: vals.slice(0, max).map(v => K.die(v, f, 26)).join('') }), vals.length > max ? K.p('… and ' + (vals.length - max) + ' more.') : null);

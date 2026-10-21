@@ -6,70 +6,6 @@
   'use strict';
   const K = REV.kit;
   const { F, T, h } = K;
-
-  /* Maths a phone can wrap. The kit wraps a chain after =, + or × on a narrow phone, but shows an aligned block, or any
-     formula with a matrix, as one display that can only scroll sideways. flow() gives each row of an aligned block a
-     line of its own (a row that goes on with + or − joins the line before; one that goes on with = is indented), sets
-     a formula with a matrix inline so that it can break between the matrices, and lets a list break after a comma
-     outside brackets. flowSteps and flowAnswer are K.steps and K.answer with flow() for the maths. */
-  const { flow, flowSteps, flowAnswer } = (() => {
-    const TOK = /\\(?:begin|end)\{[^}]*\}|\\[A-Za-z]+|\\.|[\s\S]/y;
-    const toks = s => { const a = []; for (TOK.lastIndex = 0; TOK.lastIndex < s.length;) a.push(TOK.exec(s)[0]); return a; };
-    const depth = t => (t === '{' || t === '\\left' || t.startsWith('\\begin') ? 1 : t === '}' || t === '\\right' || t.startsWith('\\end') ? -1 : 0);
-    const LEAD = /^(?:\s|~|\\(?:quad|qquad|[,;: ]))+/, BIN = /^(?:[+−-]|\\(?:times|cdot|pm|mp|div)(?![A-Za-z]))/;
-    const REL = /^(?:[=<>]|\\(?:approx|le|leq|ge|geq|ne|neq|equiv|sim|to|Rightarrow|Longrightarrow|longrightarrow|iff|implies)(?![A-Za-z]))/;
-    function lines(src) {
-      const tk = toks(String(src)), out = [];
-      let pre = '', d = 0, i = 0;
-      while (i < tk.length) {
-        let t = tk[i++];
-        if (t !== '\\begin{aligned}' || d) { d += depth(t); pre += t; continue; }
-        if (pre.trim()) out.push(pre.trim());
-        pre = '';
-        const rows = [[]];
-        let cell = '', e = 0;
-        for (; i < tk.length; i++) {
-          t = tk[i];
-          if (!e && t === '\\end{aligned}') { i++; break; }
-          if (!e && t === '\\\\') {                                 // a new row; skip a spacing like \\[4pt]
-            rows[rows.length - 1].push(cell); rows.push([]); cell = '';
-            let k = i + 1;
-            while (k < tk.length && /^\s$/.test(tk[k])) k++;
-            if (tk[k] === '[') { while (k < tk.length && tk[k] !== ']') k++; i = k; }
-            continue;
-          }
-          if (!e && t === '&') { rows[rows.length - 1].push(cell); cell = ''; continue; }
-          e += depth(t);
-          cell += t;
-        }
-        rows[rows.length - 1].push(cell);
-        for (const c of rows) {
-          if (!c.join('').trim()) continue;
-          if (c.length > 2) { for (let k = 0; k < c.length; k += 2) { const p = (c[k] + ' ' + (c[k + 1] || '')).replace(LEAD, '').trim(); if (p) out.push(p); } continue; }
-          const go = c.length === 2 && !c[0].trim() ? c[1].replace(LEAD, '').trim() : null;
-          if (go && BIN.test(go) && out.length) out[out.length - 1] += ' ' + go;
-          else out.push(go && REL.test(go) ? '\\quad ' + go : c.join(' ').trim());
-        }
-        while (i < tk.length && LEAD.test(tk[i])) i++;
-      }
-      if (pre.trim()) out.push(pre.trim());
-      return out.map(line => {
-        let s = '', b = 0, e = 0;
-        for (const t of toks(line)) {
-          if (t === '(' || t === '[') b++; else if (t === ')' || t === ']') b--; else e += depth(t);
-          s += t + (t === ',' && !b && !e ? '\\allowbreak ' : '');
-        }
-        return s;
-      });
-    }
-    // a little room above and below each unbreakable piece, so that tall fractions on wrapped lines do not touch
-    const flow = tex => lines(tex).map(l => '<span class="lk-wrap">' + K.kx('\\displaystyle ' + l, false).replace(/<span class="base">/g, '<span class="base" style="margin: .15em 0">') + '</span>').join('');
-    return {
-      flow,
-      flowSteps: list => h('ol', { class: 'lk-steps' }, list.map(x => h('li', {}, x.text ? h('div', { class: 'lk-step-t', html: K.rich(x.text) }) : null, x.tex ? h('div', { class: 'lk-step-m', html: flow(x.tex) }) : null))),
-      flowAnswer: (label, tex, note) => h('div', { class: 'lk-answer' }, h('div', { class: 'lk-answer-k', html: K.rich(label) }), h('div', { class: 'lk-answer-v', html: flow(tex) }), note ? h('div', { class: 'lk-answer-n', html: K.rich(note) }) : null),
-    };
-  })();
   const sv = K.sv, rich = K.rich;
 
   /* ================================================================== numbers */
@@ -184,7 +120,7 @@
     if (out && window.matchMedia && matchMedia('(max-width: 860px)').matches) window.scrollTo(0, Math.max(0, out.getBoundingClientRect().top + window.scrollY - 70));
   };
   /** K.answer that never widens the page: as a grid item it may shrink, and its maths scrolls inside it */
-  const answer = (...a) => { const el = flowAnswer(...a); el.style.minWidth = '0'; return el; };
+  const answer = (...a) => { const el = K.answer(...a); el.style.minWidth = '0'; return el; };
   /** keep KaTeX's hidden copy of each formula (position: absolute) inside its scroll box: without a positioned box it
       escapes, and a wide table makes the whole page scroll sideways on a phone */
   const contain = box => {
@@ -575,7 +511,7 @@
         st.push({ text: 'Add them up:', tex: '= ' + TX(pZ) });
         if (both) st.push({ text: 'Check by counting: with fair dice every pair has the same chance, so the answer is (pairs on the line) ÷ (all pairs).', tex: '\\frac{' + pairs.length + '}{' + X.f + ' \\times ' + Y.f + '} = \\frac{' + pairs.length + '}{' + (X.f * Y.f) + '} = ' + T(pZ) });
       }
-      out.append(K.card('Every step', flowSteps(st)));
+      out.append(K.card('Every step', K.steps(st)));
 
       const k = zs.indexOf(z), hiSet = k >= 0 ? [k] : [];
       const EX = dieMean(X), EY = dieMean(Y), EZ = fsum(zs.map((t, i) => pz[i].mul(t)));
@@ -589,7 +525,7 @@
         K.p('The same steps for every total. The bar for $z = ' + z + '$ is coloured.' + (both && X.f === Y.f ? ' Two fair dice give a triangle: the middle totals have the most pairs (lecture 2.8).' : '')),
         barChart({ xs: zs, ys: pz.map(v => v.num()), hi: hiSet, xName: 'z = x + y' }),
         K.table(['$z$', 'pairs', '$P(Z = z)$'], zs.map((t, i) => ['$' + t + '$', String(cnt[i]), '$' + TX(pz[i]) + '$']), { hi: new Set(hiSet), compact: true }),
-        flowSteps(checks)));
+        K.steps(checks)));
     }
     draw();
   }
@@ -651,7 +587,7 @@
       const lt = isMax ? '<' : '>', le = isMax ? '\\le ' + (z - 1) : '\\ge ' + (z + 1);
       const t1 = pX.mul(pY), t2 = pX.mul(aY), t3 = aX.mul(pY);
       out.append(K.card('Every step: add up the L',
-        flowSteps([
+        K.steps([
           { text: '$' + V + ' = ' + z + '$ happens in three ways that cannot happen together (lecture 2.10): both dice show ' + z + '; the first shows ' + z + ' and the second is ' + (isMax ? 'smaller' : 'bigger') + '; the first is ' + (isMax ? 'smaller' : 'bigger') + ' and the second shows ' + z + '. They are the corner and the two arms of the L.',
             tex: al('P(' + V + ' = ' + z + ') &= P(X = ' + z + ', Y = ' + z + ')', '&\\quad + P(X = ' + z + ', Y ' + lt + ' ' + z + ')', '&\\quad + P(X ' + lt + ' ' + z + ', Y = ' + z + ')') },
           { text: 'The dice are independent, so each part is a product of two chances:', tex: al('&= P(X = ' + z + ')\\,P(Y = ' + z + ')', '&\\quad + P(X = ' + z + ')\\,P(Y ' + le + ')', '&\\quad + P(X ' + le + ')\\,P(Y = ' + z + ')') },
@@ -678,7 +614,7 @@
           { text: '"At least ' + z + '" minus "at least ' + (z + 1) + '" leaves exactly $' + z + '$. It agrees with the L shape:', tex: al('P(N = ' + z + ') &= P(N \\ge ' + z + ') - P(N \\ge ' + (z + 1) + ')', '&= ' + T(Gz) + ' - ' + T(Gz1) + ' = ' + TX(Gz.sub(Gz1))) },
         ];
       }
-      out.append(K.card('The CDF shortcut', flowSteps(st)));
+      out.append(K.card('The CDF shortcut', K.steps(st)));
 
       const cdfV = []; let c = F(0); pv.forEach(p => { c = c.add(p); cdfV.push(c); });
       const checks = [{ text: 'The chances add up to 1:', tex: '\\sum_z P(' + V + ' = z) = ' + T(fsum(pv)) }];
@@ -692,7 +628,7 @@
         barChart({ xs: vals, ys: pv.map(v => v.num()), hi: k >= 0 ? [k] : [], xName: 'z = ' + (isMax ? 'max' : 'min') + '(x, y)' }),
         K.table(['$z$', 'cells', '$P(' + V + ' = z)$', '$P(' + V + ' \\le z)$'], vals.map((v, i) => ['$' + v + '$', String(cnt[i]), '$' + TX(pv[i]) + '$', '$' + T(cdfV[i]) + '$']), { hi: new Set(k >= 0 ? [k] : []), compact: true }),
         K.cdf({ xs: vals, ps: pv, xName: 'CDF of ' + V, mark: k >= 0 ? z : null }),
-        flowSteps(checks)));
+        K.steps(checks)));
     }
     draw();
   }
@@ -760,11 +696,11 @@
       out.append(K.card('The joint table $f_{XY}(t_1, t_2)$',
         K.p('Each cell is the chance of one pair: $f_{XY}(t_1, t_2) = P(X = t_1, Y = t_2)$. Values of $X$ go across ($t_1$) and values of $Y$ go down ($t_2$), as in the lectures. Your cell is outlined; its column and row are shaded.'),
         jointTable(J, (i, j) => (i === ti && j === uj ? { bg: STRONG, strong: true } : i === ti || j === uj ? { bg: TINT[0] } : null)),
-        flowSteps(st)));
+        K.steps(st)));
 
       const col = J.ys.map(y => J.P(t, y)).filter(v => !v.isZero()), row = J.xs.map(x => J.P(x, u)).filter(v => !v.isZero());
       out.append(K.card('Marginals: add a column or a row',
-        flowSteps([
+        K.steps([
           { text: 'The chance of $X = ' + tT + '$ on its own: add down the column $t_1 = ' + tT + '$ (the zero cells add nothing):', tex: sumLines('f_X(' + tT + ')', col.map(T), fxt, { per: 5, def: '\\sum_{t_2} f_{XY}(' + tT + ', t_2)' }) },
           { text: 'The chance of $Y = ' + uT + '$ on its own: add along the row $t_2 = ' + uT + '$:', tex: sumLines('f_Y(' + uT + ')', row.map(T), fyu, { per: 5, def: '\\sum_{t_1} f_{XY}(t_1, ' + uT + ')' }) },
           { text: 'These column totals and row totals are the <b>marginal PMFs</b>, on the edges of the table. Each adds up to 1:', tex: '\\textstyle\\sum_{t_1} f_X(t_1) = ' + T(fsum(J.fx)) + ', \\quad \\sum_{t_2} f_Y(t_2) = ' + T(fsum(J.fy)) },
@@ -775,15 +711,15 @@
       out.append(K.card('Conditional PMF of $Y$ given $X = ' + tT + '$',
         K.p('Keep only the outcomes with $X = ' + tT + '$: the column $t_1 = ' + tT + '$. Its cells add up to $f_X(' + tT + ') = ' + T(fxt) + '$, so divide each one by that; the new chances add up to 1 (lecture 1.3). Values of $Y$ not listed have chance 0 here.'),
         K.table(['$t_2$', '$f_{XY}(' + tT + ', t_2)$', '$f_{Y \\mid X = ' + tT + '}(t_2)$'], condRows(J.ys, y => J.P(t, y), fxt, uj), { compact: true }),
-        flowSteps([{ text: 'For your $u$:', tex: al('P(Y = ' + uT + ' \\mid X = ' + tT + ') &= \\frac{f_{XY}(' + tT + ', ' + uT + ')}{f_X(' + tT + ')}', '&= ' + T(ptu) + ' \\div ' + T(fxt) + ' = ' + TX(ptu.div(fxt))) }])));
+        K.steps([{ text: 'For your $u$:', tex: al('P(Y = ' + uT + ' \\mid X = ' + tT + ') &= \\frac{f_{XY}(' + tT + ', ' + uT + ')}{f_X(' + tT + ')}', '&= ' + T(ptu) + ' \\div ' + T(fxt) + ' = ' + TX(ptu.div(fxt))) }])));
       out.append(K.card('Conditional PMF of $X$ given $Y = ' + uT + '$',
         K.p('The same with the row $t_2 = ' + uT + '$: divide each of its cells by $f_Y(' + uT + ') = ' + T(fyu) + '$.'),
         K.table(['$t_1$', '$f_{XY}(t_1, ' + uT + ')$', '$f_{X \\mid Y = ' + uT + '}(t_1)$'], condRows(J.xs, x => J.P(x, u), fyu, ti), { compact: true }),
-        flowSteps([{ text: 'For your $t$:', tex: al('P(X = ' + tT + ' \\mid Y = ' + uT + ') &= \\frac{f_{XY}(' + tT + ', ' + uT + ')}{f_Y(' + uT + ')}', '&= ' + T(ptu) + ' \\div ' + T(fyu) + ' = ' + TX(ptu.div(fyu))) }])));
+        K.steps([{ text: 'For your $t$:', tex: al('P(X = ' + tT + ' \\mid Y = ' + uT + ') &= \\frac{f_{XY}(' + tT + ', ' + uT + ')}{f_Y(' + uT + ')}', '&= ' + T(ptu) + ' \\div ' + T(fyu) + ' = ' + TX(ptu.div(fyu))) }])));
 
       const checks = cellChecks(J), bad = checks.filter(c => !c.ok), prod = fxt.mul(fyu);
       out.append(K.card('Are $X$ and $Y$ independent?',
-        flowSteps([
+        K.steps([
           { text: 'If they were, every cell would be the product of its two marginals (lecture 2.1). For your cell:', tex: al('f_X(' + tT + ')\\,f_Y(' + uT + ') &= ' + T(fxt) + ' \\cdot ' + T(fyu) + ' = ' + T(prod), '&' + (prod.eq(ptu) ? '=' : '\\ne') + ' ' + T(ptu) + ' = f_{XY}(' + tT + ', ' + uT + ')') },
           { text: bad.length ? 'So $X$ and $Y$ are <b>dependent</b>: ' + bad.length + ' of the ' + checks.length + ' cells fail.' + (prod.eq(ptu) ? ' Your cell passes, but one failing cell is enough.' : '') : 'All ' + checks.length + ' cells pass, so $X$ and $Y$ are <b>independent</b>.' },
         ]),
@@ -819,7 +755,7 @@
       out.append(answer('Are $X = ' + XT + '$ and $Y = ' + YT + '$ independent?',
         first ? al('\\text{No: }\\ f_{XY}' + cellT(first) + ' &= ' + T(first.pj), '&\\ne ' + T(first.pr) + ' = f_X(' + T(first.x) + ')\\,f_Y(' + T(first.y) + ')') : al('\\text{Yes: all ' + checks.length + ' cells pass:}', 'f_{XY}(t_1, t_2) = f_X(t_1)\\,f_Y(t_2)'),
         first ? 'One failing cell is enough: they are dependent.' : null));
-      out.append(K.card('The rule (lecture 2.1)', flowSteps([
+      out.append(K.card('The rule (lecture 2.1)', K.steps([
         { text: '$X$ and $Y$ are independent exactly when every cell of the joint table equals the product of its column total and its row total (the marginals):', tex: 'f_{XY}(t_1, t_2) = f_X(t_1)\\,f_Y(t_2) \\quad \\text{for every } t_1, t_2' },
         { text: 'So check the cells one by one. One cell that fails is enough to say <b>dependent</b>. To say <b>independent</b>, all ' + checks.length + ' cells must pass.' },
       ])));
@@ -841,7 +777,7 @@
         ];
         const zero = checks.find(c => c.pj.isZero());
         if (zero) st.push({ text: 'A quick giveaway (lecture 2.1): the cell $' + cellT(zero) + '$ is 0, while its column total $' + T(J.fx[zero.i]) + '$ and row total $' + T(J.fy[zero.j]) + '$ are not, so their product is not 0. A 0 inside the table always means dependent.' });
-        out.append(K.card('The first failing cell, explained', flowSteps(st)));
+        out.append(K.card('The first failing cell, explained', K.steps(st)));
       } else {
         const ux = usedVars(ex), uy = usedVars(ey), dn = v => (v === 'd1' ? 'the first die' : 'the second die');
         const sep = ux.size && uy.size && [...ux].every(v => !uy.has(v));
@@ -932,7 +868,7 @@
       st.push({ text: 'Check: the chances of $Y$ add up to 1.', tex: '\\sum_y P(Y = y) = ' + T(fsum(G.map(g => g.p))) });
       out.append(K.card('Every step',
         K.table(['$x$', '$P(X = x)$', '$g(x)$'], d.faces.map((x, i) => ['$' + x + '$', '$' + T(d.p[i]) + '$', '$' + texF(e, { x: F(x) }) + ' = ' + T(gv[i]) + '$']), { compact: true }),
-        flowSteps(st)));
+        K.steps(st)));
       out.append(K.card('The PMF of $Y$',
         K.p('Each bar stands at a value of $Y$, at its true place on the number line. ' + (merged.length ? 'Compared with the flat or smooth PMF of $X$, values merge and some bars grow (lecture 2.4).' : 'The bars keep their heights; they only move to new places (lecture 2.3).')),
         barChart({ xs: G.map(g => g.y.num()), ys: G.map(g => g.p.num()), xName: 'y = g(x)', xl: v => r4(v, 3) }),
@@ -946,7 +882,7 @@
         const gm = evalF(e, { x: EX });
         mean.push({ text: 'Careful: putting the mean $E[X] = ' + T(EX) + '$ into $g$ ' + (gm.eq(EY2) ? 'happens to give the same number here, but in general it does not:' : 'gives a different number. In general $E[g(X)] \\ne g(E[X])$:'), tex: 'g(E[X]) = g\\left(' + T(EX) + '\\right) = ' + TX(gm) });
       } catch (er) { /* g cannot take the mean (like mod 0); skip the remark */ }
-      out.append(K.card('The mean of $Y$, two ways', flowSteps(mean)));
+      out.append(K.card('The mean of $Y$, two ways', K.steps(mean)));
     }
     draw();
   }
@@ -1003,7 +939,7 @@
       out.append(K.card('The joint table',
         K.p('First the joint table of $X$ and $Y$: each cell adds the chances of the outcomes of the two dice that give it (see the topic Joint table). The edges are the marginals.'),
         jointTable(J)));
-      out.append(K.card('Step 1: the two means', flowSteps([
+      out.append(K.card('Step 1: the two means', K.steps([
         { text: 'Weight each value of $X$ by its chance (bottom edge of the table):', tex: sumLines('E[X]', J.xs.map((x, i) => TP(x) + '\\cdot ' + T(J.fx[i])), EX, { def: '\\sum_{t_1} t_1\\, f_X(t_1)' }) },
         { text: 'The same for $Y$ (right edge of the table):', tex: sumLines('E[Y]', J.ys.map((y, j) => TP(y) + '\\cdot ' + T(J.fy[j])), EY, { def: '\\sum_{t_2} t_2\\, f_Y(t_2)' }) },
       ])));
@@ -1013,8 +949,8 @@
         K.p(byCell ? 'For every cell that is not 0, multiply its two values and its chance. Then add the last column.' : 'There are many cells, so group them by column: inside column $t_1$, add $t_2\\, f_{XY}(t_1, t_2)$; then multiply by $t_1$.'),
         byCell ? K.table(['$t_1$', '$t_2$', '$f_{XY}(t_1, t_2)$', '$t_1\\, t_2\\, f_{XY}$'], cells.map(c => ['$' + T(c.x) + '$', '$' + T(c.y) + '$', '$' + T(c.p) + '$', '$' + T(c.x.mul(c.y).mul(c.p)) + '$']).concat([['', '', '<b>total</b>', '<b>$' + T(EXY) + '$</b>']]), { compact: true })
           : K.table(['$t_1$', '$\\sum_{t_2} t_2 f_{XY}(t_1, t_2)$', '$t_1 \\times$ that'], groups.map(g => ['$' + T(g.x) + '$', '$' + T(g.inner) + '$', '$' + T(g.part) + '$']).concat([['', '<b>total</b>', '<b>$' + T(EXY) + '$</b>']]), { compact: true }),
-        flowSteps([{ text: 'The total is the mean of the product:', tex: 'E[XY] = \\sum_{t_1, t_2} t_1\\, t_2\\, f_{XY}(t_1, t_2) = ' + TX(EXY) }])));
-      out.append(K.card('Step 3: the covariance', flowSteps([
+        K.steps([{ text: 'The total is the mean of the product:', tex: 'E[XY] = \\sum_{t_1, t_2} t_1\\, t_2\\, f_{XY}(t_1, t_2) = ' + TX(EXY) }])));
+      out.append(K.card('Step 3: the covariance', K.steps([
         { text: 'The short formula (lecture 3.5): the mean of the product minus the product of the means.', tex: '\\Cov(X, Y) = E[XY] - E[X]\\,E[Y]' },
         { text: 'Put in the numbers:', tex: al('&= ' + T(EXY) + ' - ' + TP(EX) + ' \\cdot ' + TP(EY), '&= ' + T(EXY) + ' - ' + TP(EX.mul(EY)) + ' = ' + TX(cov)) },
         { text: 'Check with the definition: add $(t_1 - E[X])(t_2 - E[Y])\\, f_{XY}(t_1, t_2)$ over all cells. Same answer:', tex: al('&E\\big[(X - E[X])(Y - E[Y])\\big]', '&= ' + TX(covDef)) },
@@ -1028,7 +964,7 @@
         { text: 'Square it to keep the numbers exact:', tex: al('\\rho_{XY}^2 &= \\frac{\\Cov(X, Y)^2}{\\Var(X)\\,\\Var(Y)}', '&= ' + sq(cov) + ' \\div \\left(' + T(VX) + ' \\cdot ' + T(VY) + '\\right)', '&= ' + T(rho2)) },
         { text: 'Take the square root, with the sign of the covariance:', tex: '\\rho_{XY} = ' + rhoT });
       else vst.push({ text: 'One variance is 0 (that variable never changes), so the correlation is not defined.' });
-      out.append(K.card('Step 4: variances and correlation', flowSteps(vst)));
+      out.append(K.card('Step 4: variances and correlation', K.steps(vst)));
       out.append(K.card('A picture',
         K.p('One bubble per cell; a bigger bubble means a bigger chance. The dashed lines cross at the means. Green bubbles (up-right or down-left of the cross) push the covariance up; red ones (the other two corners) pull it down; grey ones sit on a line and add nothing.'),
         scatterPic(cells, EX, EY)));
@@ -1155,7 +1091,7 @@
         'Both limits are true, but they can be far above the exact chance: they use only the mean and the variance.'));
       const colors = cnt.map((_, i) => (smin + i >= a ? BARHI : c.cmp(0) > 0 && F(smin + i).cmp(mu.sub(c)) <= 0 ? 'var(--y)' : null));
       out.append(K.card('The total $S$',
-        flowSteps(oneSt.concat([
+        K.steps(oneSt.concat([
           { text: 'The dice are independent, so the means add up and the variances add up too:', tex: al('E[S] &= n\\mu = ' + n + ' \\cdot ' + TP(mu1) + ' = ' + TX(mu), '\\Var(S) &= n\\sigma^2 = ' + n + ' \\cdot ' + TP(v1) + ' = ' + TX(v), '\\SD(S) &= \\sqrt{' + T(v) + '} \\approx ' + r4(sd)) },
           { text: 'The exact PMF of $S$ comes from adding one die at a time (the convolution of the topic Sum of two dice). Purple bars: $S \\ge ' + a + '$.' + (cheb ? ' Orange bars: the other side, at least as far below the mean (Chebyshev counts both sides).' : '') },
         ])),
@@ -1163,18 +1099,18 @@
       const tailTerms = [];
       for (let t = Math.max(a, smin); t <= smax && tailTerms.length < 7; t++) tailTerms.push(T(F(cnt[t - smin], Wn)));
       const nTail = Math.max(0, smax - Math.max(a, smin) + 1);
-      out.append(K.card('The exact chance', flowSteps([
+      out.append(K.card('The exact chance', K.steps([
         { text: a > smax ? 'The largest total is ' + smax + ', so $S \\ge ' + a + '$ cannot happen.' : 'Add the chances of the totals from ' + Math.max(a, smin) + ' to ' + smax + (nTail > 7 ? ' (' + nTail + ' totals; the first 7 are shown)' : '') + ':',
           tex: a > smax ? 'P(S \\ge ' + a + ') = 0' : sumLines('P(S \\ge ' + a + ')', nTail > 7 ? tailTerms.concat(['\\dots']) : tailTerms, pTail, { per: 3, def: '\\sum_{s=' + Math.max(a, smin) + '}^{' + smax + '} P(S = s)' }) },
         d.fair ? { text: 'With fair dice every one of the $' + d.f + '^{' + n + '}$ outcomes is equally likely, so this is (outcomes with total at least ' + a + ') ÷ (all outcomes):', tex: '\\frac{' + bsum(cnt, a - smin) + '}{' + Wn + '}' + (pTail.isZero() ? ' = 0' : '') } : null,
       ].filter(Boolean))));
-      out.append(K.card('Markov\'s inequality (lecture 3.7)', flowSteps([
+      out.append(K.card('Markov\'s inequality (lecture 3.7)', K.steps([
         { text: 'It needs a variable that is never negative. $S$ is at least ' + smin + ', so it qualifies:', tex: 'P(S \\ge a) \\le \\frac{E[S]}{a}' },
         { text: 'Put in the numbers:', tex: 'P(S \\ge ' + a + ') \\le \\frac{' + T(mu) + '}{' + a + '} = ' + TX(markov) },
         { text: useless(markov) ? 'The limit is 1 or more, so it says nothing new: every chance is at most 1 anyway. Markov helps only for $a$ well above the mean.'
           : 'The exact chance $' + dx(pTail.num()) + '$ is below the limit $' + dx(markov.num()) + '$, as it must be. Markov knows only the mean, so the limit is loose.' },
       ])));
-      out.append(K.card('Chebyshev\'s inequality (lecture 3.7)', cheb ? flowSteps([
+      out.append(K.card('Chebyshev\'s inequality (lecture 3.7)', cheb ? K.steps([
         { text: '$S \\ge ' + a + '$ means $S$ is at least $c$ above its mean, where', tex: 'c = a - E[S] = ' + a + ' - ' + TP(mu) + ' = ' + T(c) },
         { text: 'Being $c$ above the mean is one part of being at least $c$ away from it on either side:', tex: 'P(S \\ge ' + a + ') \\le P(|S - E[S]| \\ge c)' },
         { text: 'Chebyshev limits the two-sided chance with the variance:', tex: al('P(|S - E[S]| \\ge c) &\\le \\frac{\\Var(S)}{c^2}', '&= ' + T(v) + ' \\div ' + sq(c), '&= ' + TX(cheb)) },
@@ -1252,7 +1188,7 @@
         chart({ x0: 0, x1: 1.02, y1: 0.5, yt: [0, 0.1, 0.2, 0.3, 0.4, 0.5], xt: [0, 0.25, 0.5, 0.75, 1], xName: 'u = k/N', bars: spikes, H: 190 })));
       const blocks = N <= 200 ? Array.from({ length: N }, (_, i) => ({ x: (i + 0.5) / N, y: 1, w: 1 / N * 0.98, fill: i + 1 >= kLo && i + 1 <= kHi ? BARHI : BAR })) : [];
       out.append(K.card('Chance per unit length: the density',
-        flowSteps([
+        K.steps([
           { text: 'Spread each face\'s chance over its own little piece of the line, from $\\frac{k-1}{N}$ to $\\frac{k}{N}$. Each piece has length $\\frac{1}{N}$. Chance divided by length is the height:', tex: '\\frac{1/' + N + '}{1/' + N + '} = 1' },
           { text: 'So the pieces make a flat block of height 1, for every $N$. While the spikes shrink to nothing, the block stays: the endless die has the <b>density</b> (lectures 4.4–4.5)', tex: 'f_U(u) = 1 \\quad \\text{for } 0 \\le u \\le 1, \\qquad F_U(u) = P(U \\le u) = u' },
         ]),
@@ -1263,7 +1199,7 @@
         return ['$' + M + '$' + (M === N ? ' (yours)' : ''), '$\\frac{' + c + '}{' + M + '}' + (pd.exactDecimal(4) ? ' = ' : ' \\approx ') + dx(pd.num()) + '$', '$' + dx(Math.abs(pd.num() - pCont.num())) + '$'];
       });
       out.append(K.card('$P(a < U \\le b)$ two ways',
-        flowSteps([
+        K.steps([
           { text: 'With ' + N + ' faces: count the faces $k$ with $a < \\frac{k}{N} \\le b$, that is $aN < k \\le bN$:', tex: al('aN &= ' + T(a) + ' \\cdot ' + N + ' = ' + T(aN), 'bN &= ' + T(b) + ' \\cdot ' + N + ' = ' + T(bN), 'k &= ' + (count ? kLo + ', \\dots, ' + kHi + '\\quad (' + count + '\\text{ faces})' : '\\text{none}')) },
           { text: 'Each face has chance $\\frac{1}{' + N + '}$:', tex: 'P(a < U_N \\le b) = \\frac{' + count + '}{' + N + '} = ' + TX(pDisc) },
           { text: 'The endless die: the chance is the area under the density from $a$ to $b$, a rectangle of width $b - a$ and height 1. With the CDF it is $F_U(b) - F_U(a)$:', tex: al('P(a < U \\le b) &= (b - a) \\cdot 1', '&= ' + T(b) + ' - ' + T(a) + ' = ' + TX(pCont)) },
@@ -1283,7 +1219,7 @@
       else st.push({ text: 'With $t = 2$ the whole square is inside.', tex: 'P(U_1 + U_2 \\le 2) = 1' });
       const m = Number(floorF(t.mul(N)).n), cN = pairsUpTo(N, m);
       st.push({ text: 'Check with two ' + N + '-faced dice: count the pairs $(i, j)$ with $\\frac{i + j}{N} \\le t$, that is $i + j \\le ' + m + '$, out of $N^2$' + (N <= 20 ? ' (the purple dots)' : '') + ':', tex: '\\frac{' + cN + '}{' + N + '^2} = ' + TX(F(cN, N * N)) + ' \\quad\\text{vs the area } ' + TX(pT) });
-      out.append(K.card('Two endless dice: $P(U_1 + U_2 \\le t)$', squarePic(t, N), flowSteps(st),
+      out.append(K.card('Two endless dice: $P(U_1 + U_2 \\le t)$', squarePic(t, N), K.steps(st),
         K.table(['faces $N$', 'share of the $N^2$ pairs with $i + j \\le tN$'], [10, 100, 1000].map(M => { const mm = Number(floorF(t.mul(M)).n), cc = pairsUpTo(M, mm), sh = F(cc, M * M); return ['$' + M + '$', '$\\frac{' + cc + '}{' + M + '^2}' + (sh.exactDecimal(4) ? ' = ' : ' \\approx ') + dx(sh.num()) + '$']; }), { compact: true }),
         K.p('As $N$ grows the share of dots in the region becomes its area, $' + TX(pT) + '$.')));
     }
@@ -1343,7 +1279,7 @@
           lines: [{ pts: pts.map(([x, y]) => [x, Math.max(lo - pad, Math.min(hi + pad, y))]), style: 'stroke:var(--accent);stroke-width:1.8;fill:none' }],
           rules: [{ y: muN, style: 'stroke:var(--good);stroke-width:1.5;stroke-dasharray:5 3' }] })));
       const vbar = v1.div(n), bound = v1.div(dl.mul(dl).mul(n));
-      out.append(K.card('Why it settles (lecture 7.4)', flowSteps(oneSt.concat([
+      out.append(K.card('Why it settles (lecture 7.4)', K.steps(oneSt.concat([
         { text: 'The average of $n$ independent rolls has the same mean, and a variance $n$ times smaller:', tex: al('E[\\bar X_n] &= \\mu = ' + T(mu), '\\Var(\\bar X_n) &= \\frac{\\sigma^2}{n} = ' + T(v1) + ' \\div ' + n, '&= ' + TX(vbar)) },
         { text: 'Chebyshev\'s inequality on the average gives the <b>weak law of large numbers</b>:', tex: al('P\\big(|\\bar X_n - \\mu| \\ge \\delta\\big) &\\le \\frac{\\sigma^2}{n\\,\\delta^2}', '&= ' + T(v1) + ' \\div \\big(' + n + ' \\cdot ' + sq(dl) + '\\big)', '&= ' + TX(bound)) },
         { text: bound.cmp(1) >= 0 ? 'With only ' + n + ' rolls this limit is 1 or more, so it promises nothing yet. It shrinks like $\\frac1n$: more rolls make it small.' : 'So after ' + n + ' rolls the average is within ' + r4(dN, 3) + ' of ' + r4(muN, 3) + ' with chance at least $1 - ' + dx(bound.num()) + ' = ' + dx(1 - bound.num()) + '$. As $n$ grows the limit goes to 0: the average is almost sure to be close to $\\mu$.' },
@@ -1400,7 +1336,7 @@
       const curve = [];
       for (let k = 0; k <= 160; k++) { const x = smin - 1 + (smax - smin + 2) * k / 160; curve.push([x, phi((x - muN) / sd) / sd]); }
       out.append(K.card('The exact distribution of $S$',
-        flowSteps(oneSt.concat([
+        K.steps(oneSt.concat([
           { text: 'Add one die at a time. Each step is a convolution (lecture 2.9): a new total $s$ collects the old totals $s - x$, each times the chance of the new face $x$.', tex: al('P(S_{k+1} = s) &= \\sum_x P(S_k = s - x)', '&\\qquad \\times P(X = x)') },
           { text: 'Doing this ' + plural(n - 1, 'time') + ' gives the exact PMF of $S$' + (d.fair ? ': (number of ways to make $s$) ÷ $' + d.f + '^{' + n + '}$' : '') + '. The means and the variances add up:', tex: al('E[S] &= n\\mu = ' + TX(mu), '\\Var(S) &= n\\sigma^2 = ' + TX(v), '\\SD(S) &= \\sqrt{n}\\,\\sigma \\approx ' + r4(sd)) },
         ])),
@@ -1412,7 +1348,7 @@
       zs.forEach((z, i) => { gap = Math.max(gap, Math.abs(hs[i] - phi(z))); });
       const top = Math.max(0.42, ...hs), yt = niceTicks(top, 5);
       out.append(K.card('Standardise and compare with the bell curve',
-        flowSteps([
+        K.steps([
           { text: 'Move the centre to 0 and measure in standard deviations (lectures 7.6 and 8.2):', tex: 'Z = \\frac{S - n\\mu}{\\sqrt{n}\\,\\sigma} = \\frac{S - ' + T(mu) + '}{' + r4(sd) + '}' },
           { text: 'Each bar is now $1/\\SD(S)$ wide, so its height becomes $P(S = s) \\times \\SD(S)$, keeping its area. The central limit theorem says the bars approach the standard normal density:', tex: '\\phi(z) = \\frac{1}{\\sqrt{2\\pi}}\\,e^{-z^2/2}' },
           { text: 'The largest gap between a bar top and the curve is ' + r4(gap, 4) + '. Try $n = 1, 2, 10, 30$: the gap shrinks.' },
@@ -1435,7 +1371,7 @@
         c2.forEach((x, i) => { if (Math.abs(lo2 + i - mu2) <= sd2 + 1e-9) tot += x; });
         return ['$' + m + '$' + (m === n ? ' (yours)' : ''), '$' + r4(Number(tot) / Number(W2), 4) + '$', '$0.6827$'];
       });
-      out.append(K.card('Exact versus normal', flowSteps(st),
+      out.append(K.card('Exact versus normal', K.steps(st),
         K.p('Another view: the chance that $S$ lands within one SD of its mean, $|S - n\\mu| \\le \\sqrt{n}\\,\\sigma$, for more and more dice. The normal curve says 0.6827 for every $n$.'),
         K.table(['dice $n$', 'exact', 'normal'], within, { compact: true })));
     }
@@ -1483,7 +1419,7 @@
       out.append(K.card('Your rolls',
         h('div', { class: 'lk-outcomes' }, rolls.slice(0, 60).map(v => h('span', { class: 'lk-outcome' + (v === M ? ' hi' : ''), style: 'min-width:30px;justify-content:center', text: String(v) }))),
         n > 60 ? K.p('… and ' + (n - 60) + ' more.') : null,
-        flowSteps([{ text: 'Their mean: add them up and divide by how many there are.', tex: '\\bar x = ' + (mean.n === BigInt(total) && mean.d === BigInt(n) ? TX(mean) : '\\frac{' + total + '}{' + n + '} ' + eqTX(mean)) }, { text: 'The largest roll (outlined) is $' + M + '$.' }])));
+        K.steps([{ text: 'Their mean: add them up and divide by how many there are.', tex: '\\bar x = ' + (mean.n === BigInt(total) && mean.d === BigInt(n) ? TX(mean) : '\\frac{' + total + '}{' + n + '} ' + eqTX(mean)) }, { text: 'The largest roll (outlined) is $' + M + '$.' }])));
       const st = [
         { text: 'For a fair die with faces 1 to $N$ each face has chance $\\frac1N$, so its mean is the middle face:', tex: al('E[X] &= \\frac{1 + 2 + \\dots + N}{N}', '&= \\frac{N(N+1)/2}{N} = \\frac{N+1}{2}') },
         { text: 'The method of moments makes the die\'s mean equal to the mean of the rolls (lecture 9.5):', tex: '\\frac{N + 1}{2} = \\bar x = ' + T(mean) },
@@ -1491,10 +1427,10 @@
         mom.cmp(M) < 0 ? { text: '<b>But</b> a ' + M + ' was rolled, so the die has at least ' + M + ' faces: this guess is impossible. Lecture 9.8 shows the same flaw for a uniform on $[0, \\theta]$: the samples $\\tfrac12, \\tfrac12, 8$ give $\\hat\\theta = 2\\bar x = 6$, below the 8 that was seen.' }
           : { text: 'Why it makes sense: rolls of a fair die sit around the middle face $\\frac{N+1}{2}$ on average, so twice the average, minus 1, points at $N$. The guess need not be a whole number.' },
       ];
-      out.append(K.card('Method of moments', flowSteps(st)));
+      out.append(K.card('Method of moments', K.steps(st)));
       const xs = [], ys = [];
       for (let g = Math.max(1, M - 3); g <= M + 12; g++) { xs.push(g); ys.push(g < M ? 0 : Math.pow(M / g, n)); }
-      out.append(K.card('Maximum likelihood', flowSteps([
+      out.append(K.card('Maximum likelihood', K.steps([
         { text: 'Take a guess $N$. One roll $x$ has chance $\\frac1N$ if $x \\le N$, and chance 0 if $x > N$ (that face does not exist).' },
         { text: 'The rolls are independent, so the chance of all ' + n + ' rolls together, the <b>likelihood</b>, is the product (lecture 9.6):', tex: 'L(N) = \\begin{cases} \\left(\\dfrac{1}{N}\\right)^{' + n + '} & \\text{if } N \\ge ' + M + ' \\\\[4pt] 0 & \\text{if } N < ' + M + ' \\end{cases}' },
         { text: 'Below ' + M + ' the likelihood is 0. From ' + M + ' up it shrinks as $N$ grows (each roll becomes less likely). So it is largest at the smallest allowed $N$:', tex: '\\hat N_{\\text{ML}} = \\max(x_1, \\dots, x_n) = ' + M },
@@ -1503,7 +1439,7 @@
         barChart({ xs, ys, hi: [xs.indexOf(M)], xName: 'guess N' })));
       const bst = [{ text: 'In one line: the largest roll is never above $N$ and is often below it, so on average the ML guess is too small (biased low), while the method of moments has no bias:', tex: al('E[\\hat N_{\\text{ML}}] &= N - \\sum_{j=1}^{N-1} \\left(\\tfrac{j}{N}\\right)^n < N', 'E[\\hat N_{\\text{MoM}}] &= 2 \\cdot \\tfrac{N+1}{2} - 1 = N') }];
       if (N) { let sj = 0; for (let j = 1; j < N; j++) sj += Math.pow(j / N, n); bst.push({ text: 'For your hidden die ($N = ' + N + '$, ' + plural(n, 'roll') + '):', tex: 'E[\\hat N_{\\text{ML}}] \\approx ' + r4(N - sj, 3) + ', \\quad \\text{a bias of } ' + r4(-sj, 3) }); }
-      out.append(K.card('Bias of the ML guess', flowSteps(bst)));
+      out.append(K.card('Bias of the ML guess', K.steps(bst)));
     }
     draw();
   }
@@ -1570,13 +1506,13 @@
       out.append(answer('Is the die fair? The chi-square test at $\\alpha = ' + alpha + '$', al('T &' + eqTX(Tst, 3), pTex),
         reject ? '$T$ is above the critical value $c \\approx ' + r4(c, 3) + '$ (so $p < \\alpha$): reject "the die is fair".' : '$T$ is not above the critical value $c \\approx ' + r4(c, 3) + '$ (so $p \\ge \\alpha$): no evidence against a fair die.'));
       out.append(K.card('Observed and expected counts',
-        flowSteps([
+        K.steps([
           { text: 'The null hypothesis $H_0$: the die is fair. Then each of the ' + k + ' faces has chance $p_i = \\frac{1}{' + k + '}$, and in $n = ' + n + '$ rolls it is expected $np_i$ times:', tex: 'np_i = ' + n + ' \\cdot \\tfrac{1}{' + k + '} = ' + TX(e) },
           { text: 'The observed counts $Y_i$ are what really happened' + (die ? ' (the lab rolled your die ' + n + ' times)' : '') + '. Compare them face by face; the dashed line is the expected count.' },
         ]),
         barChart({ xs: Y.map((_, i) => i + 1), ys: Y, xName: 'face', rules: [{ y: e.num(), label: 'expected ' + r4(e.num(), 2), style: 'stroke:var(--bad);stroke-width:1.5;stroke-dasharray:5 3' }] }),
         K.table(['face $i$', '$Y_i$', '$np_i$', '$Y_i - np_i$', '$\\frac{(Y_i - np_i)^2}{np_i}$'], Y.map((y, i) => ['$' + (i + 1) + '$', '$' + y + '$', '$' + T(e) + '$', '$' + T(F(y).sub(e)) + '$', '$' + TX(terms[i], 3) + '$']), { compact: true })));
-      out.append(K.card('The statistic $T$, term by term', flowSteps([
+      out.append(K.card('The statistic $T$, term by term', K.steps([
         { text: 'Square each gap, divide by the expected count, and add them (lecture 12.9). Big gaps make $T$ big; a perfect fit gives 0.', tex: 'T = \\sum_{i=1}^{' + k + '} \\frac{(Y_i - np_i)^2}{np_i}' },
         { text: 'Term by term:', tex: termLines(Y.map(y => '\\frac{(' + y + ' - ' + T(e) + ')^2}{' + T(e) + '}'), 2) },
         { text: 'Work out each term (the last column of the table) and add:', tex: sumLines('T', terms.map(x => T(x)), Tst, { per: 4 }) },
@@ -1587,9 +1523,9 @@
         { text: 'There is no short formula for this area, so the lab adds up a series, term by term, until the terms are too small to matter. Each term is the one before times $\\frac{T/2}{' + df + '/2 + m}$:', tex: al('P(\\chi^2_{' + df + '} \\le T) &= e^{-T/2} \\sum_{m=0}^{\\infty} \\frac{(T/2)^{' + df + '/2 + m}}{\\Gamma(' + df + '/2 + m + 1)}', first[0] > 1e-12 ? '&= ' + first.slice(0, 2).map(x => pfmt(x)).join(' + ') : '&= \\dots', first[0] > 1e-12 ? '&\\quad + ' + pfmt(first[2] || 0) + ' + \\dots' : '&\\quad', '&\\approx ' + cdfT + '\\quad (' + nTerms + '\\text{ terms})') },
         { text: 'The p-value is the rest of the total area 1:', tex: 'p = 1 - ' + cdfT + (p < 1e-10 ? ' < 10^{-10}' : ' \\approx ' + pfmt(p)) },
       ];
-      out.append(K.card('The p-value', chi2Pic(df, Tv, c), flowSteps(pst)));
+      out.append(K.card('The p-value', chi2Pic(df, Tv, c), K.steps(pst)));
       const minE = e.num();
-      out.append(K.card('Decision at $\\alpha = ' + alpha + '$', flowSteps([
+      out.append(K.card('Decision at $\\alpha = ' + alpha + '$', K.steps([
         { text: 'The critical value $c$ leaves area $\\alpha$ to its right. The lab finds it with the same series, halving an interval until the area is $' + alpha + '$:', tex: 'P(\\chi^2_{' + df + '} \\ge c) = ' + alpha + ' \\quad\\Rightarrow\\quad c \\approx ' + r4(c, 3) },
         { text: 'Reject $H_0$ when $T$ is above $c$, which is the same as $p < \\alpha$ (lecture 12.9):', tex: 'T \\approx ' + dx(Tv, 3) + (reject ? ' > ' : ' \\le ') + r4(c, 3) + ', \\qquad p ' + (reject ? '<' : '\\ge') + ' ' + alpha },
         { text: reject ? '<b>Reject $H_0$</b>: counts this uneven would be rare for a fair die.' : '<b>Do not reject $H_0$</b>: a fair die often gives counts this uneven. This does not prove the die is fair; it only finds no evidence against it.' },

@@ -11,70 +11,6 @@
       as its source text, so the cells start as plain text and the coins are put in afterwards */
   const picColumn = (tbl, pics) => { tbl.querySelectorAll('tbody tr').forEach((tr, i) => { tr.cells[0].innerHTML = pics[i]; }); return tbl; };
 
-  /* Maths a phone can wrap. The kit wraps a chain after =, + or × on a narrow phone, but shows an aligned block, or any
-     formula with a matrix, as one display that can only scroll sideways. flow() gives each row of an aligned block a
-     line of its own (a row that goes on with + or − joins the line before; one that goes on with = is indented), sets
-     a formula with a matrix inline so that it can break between the matrices, and lets a list break after a comma
-     outside brackets. flowSteps and flowAnswer are K.steps and K.answer with flow() for the maths. */
-  const { flow, flowSteps, flowAnswer } = (() => {
-    const TOK = /\\(?:begin|end)\{[^}]*\}|\\[A-Za-z]+|\\.|[\s\S]/y;
-    const toks = s => { const a = []; for (TOK.lastIndex = 0; TOK.lastIndex < s.length;) a.push(TOK.exec(s)[0]); return a; };
-    const depth = t => (t === '{' || t === '\\left' || t.startsWith('\\begin') ? 1 : t === '}' || t === '\\right' || t.startsWith('\\end') ? -1 : 0);
-    const LEAD = /^(?:\s|~|\\(?:quad|qquad|[,;: ]))+/, BIN = /^(?:[+−-]|\\(?:times|cdot|pm|mp|div)(?![A-Za-z]))/;
-    const REL = /^(?:[=<>]|\\(?:approx|le|leq|ge|geq|ne|neq|equiv|sim|to|Rightarrow|Longrightarrow|longrightarrow|iff|implies)(?![A-Za-z]))/;
-    function lines(src) {
-      const tk = toks(String(src)), out = [];
-      let pre = '', d = 0, i = 0;
-      while (i < tk.length) {
-        let t = tk[i++];
-        if (t !== '\\begin{aligned}' || d) { d += depth(t); pre += t; continue; }
-        if (pre.trim()) out.push(pre.trim());
-        pre = '';
-        const rows = [[]];
-        let cell = '', e = 0;
-        for (; i < tk.length; i++) {
-          t = tk[i];
-          if (!e && t === '\\end{aligned}') { i++; break; }
-          if (!e && t === '\\\\') {                                 // a new row; skip a spacing like \\[4pt]
-            rows[rows.length - 1].push(cell); rows.push([]); cell = '';
-            let k = i + 1;
-            while (k < tk.length && /^\s$/.test(tk[k])) k++;
-            if (tk[k] === '[') { while (k < tk.length && tk[k] !== ']') k++; i = k; }
-            continue;
-          }
-          if (!e && t === '&') { rows[rows.length - 1].push(cell); cell = ''; continue; }
-          e += depth(t);
-          cell += t;
-        }
-        rows[rows.length - 1].push(cell);
-        for (const c of rows) {
-          if (!c.join('').trim()) continue;
-          if (c.length > 2) { for (let k = 0; k < c.length; k += 2) { const p = (c[k] + ' ' + (c[k + 1] || '')).replace(LEAD, '').trim(); if (p) out.push(p); } continue; }
-          const go = c.length === 2 && !c[0].trim() ? c[1].replace(LEAD, '').trim() : null;
-          if (go && BIN.test(go) && out.length) out[out.length - 1] += ' ' + go;
-          else out.push(go && REL.test(go) ? '\\quad ' + go : c.join(' ').trim());
-        }
-        while (i < tk.length && LEAD.test(tk[i])) i++;
-      }
-      if (pre.trim()) out.push(pre.trim());
-      return out.map(line => {
-        let s = '', b = 0, e = 0;
-        for (const t of toks(line)) {
-          if (t === '(' || t === '[') b++; else if (t === ')' || t === ']') b--; else e += depth(t);
-          s += t + (t === ',' && !b && !e ? '\\allowbreak ' : '');
-        }
-        return s;
-      });
-    }
-    // a little room above and below each unbreakable piece, so that tall fractions on wrapped lines do not touch
-    const flow = tex => lines(tex).map(l => '<span class="lk-wrap">' + K.kx('\\displaystyle ' + l, false).replace(/<span class="base">/g, '<span class="base" style="margin: .15em 0">') + '</span>').join('');
-    return {
-      flow,
-      flowSteps: list => h('ol', { class: 'lk-steps' }, list.map(x => h('li', {}, x.text ? h('div', { class: 'lk-step-t', html: K.rich(x.text) }) : null, x.tex ? h('div', { class: 'lk-step-m', html: flow(x.tex) }) : null))),
-      flowAnswer: (label, tex, note) => h('div', { class: 'lk-answer' }, h('div', { class: 'lk-answer-k', html: K.rich(label) }), h('div', { class: 'lk-answer-v', html: flow(tex) }), note ? h('div', { class: 'lk-answer-n', html: K.rich(note) }) : null),
-    };
-  })();
-
   /** all 2^n outcomes of n tosses, as strings like "HTH" */
   const outcomes = n => { const out = []; for (let m = 0; m < 2 ** n; m++) { let s = ''; for (let i = n - 1; i >= 0; i--) s += (m >> i) & 1 ? 'T' : 'H'; out.push(s); } return out; };
   const heads = s => [...s].filter(c => c === 'H').length;
@@ -387,7 +323,7 @@
         tries([['Stats 1 Week 7: two coins', { n: 2 }, 'Lecture 7.1 tosses two coins: HH, HT, TH, TT'], ['One toss', { n: 1 }], ['Six tosses', { n: 6 }]], t.load)), draw);
       function draw() {
         const n = s.v.n, S = outcomes(n), N = S.length;
-        out.append(flowAnswer('The number of outcomes of ' + tosses(n), '|S| = 2^{' + n + '} = ' + N));
+        out.append(K.answer('The number of outcomes of ' + tosses(n), '|S| = 2^{' + n + '} = ' + N));
         out.append(K.card('Every outcome',
           K.p(n === 1 ? 'One toss: the coin shows heads (H) or tails (T).' : 'Each outcome lists the faces in toss order, so <span class="cl-set">HT</span> (heads first, then tails) and <span class="cl-set">TH</span> are two different outcomes.'),
           coinRows(S),
@@ -399,14 +335,14 @@
         const st = [{ text: 'The first toss shows H or T: 2 results.', tex: '2^{1} = 2' }];
         for (let i = 2; i <= n; i++) st.push({ text: 'Toss ' + i + ' can show H or T after <b>each</b> of the ' + 2 ** (i - 1) + ' results so far, so their number doubles.', tex: '2^{' + (i - 1) + '} \\times 2 = 2^{' + i + '} = ' + 2 ** i });
         if (n > 1) st.push({ text: 'This is the multiplication rule of counting: ' + n + ' tosses with 2 choices each, multiplied together.', tex: '|S| = ' + new Array(n).fill('2').join(' \\times ') + ' = 2^{' + n + '} = ' + N });
-        out.append(K.card('Why $2^n$', flowSteps(st)));
+        out.append(K.card('Why $2^n$', K.steps(st)));
         const counts = [], rows = [];
         for (let k = 0; k <= n; k++) { const c = K.C(n, k); counts.push(c); rows.push(['$' + k + '$', '$\\binom{' + n + '}{' + k + '} = ' + c.tex() + '$'].concat(n <= 4 ? ['<div class="cl-cell">' + setT(S.filter(o => heads(o) === k)) + '</div>'] : [])); }
         const total = sumF(counts), ok = total.eq(N) && S.length === N;
         out.append(K.card('Check: count them another way',
           K.p('Sort the outcomes by their number of heads $k$. Choosing which $k$ of the ' + n + ' tosses show heads can be done in $\\binom{' + n + '}{k}$ ways.'),
           K.table(['heads $k$', 'outcomes'].concat(n <= 4 ? ['which'] : []), rows),
-          flowSteps([{ text: 'Add the counts:', tex: counts.map(c => c.tex()).join(' + ') + ' = ' + total.tex() }]),
+          K.steps([{ text: 'Add the counts:', tex: counts.map(c => c.tex()).join(' + ') + ' = ' + total.tex() }]),
           K.note(ok ? 'The same ' + N + ' outcomes ✓ (this is why $\\binom{n}{0} + \\binom{n}{1} + \\dots + \\binom{n}{n} = 2^n$).' : 'The counts do not match ✗', ok ? 'good' : 'warn')));
       }
     },
@@ -441,7 +377,7 @@
           or: [or, '"$A$ or $B$", written $A \\cup B$: the outcomes in $A$, in $B$, or in both', 'A \\cup B', [parts[0][0], parts[0][1], parts[1][0]]],
           and: [and, '"$A$ and $B$", written $A \\cap B$: the outcomes in both', 'A \\cap B', [parts[0][0]]],
         }[s.v.show];
-        out.append(flowAnswer(label, '|' + sym + '| = ' + chosen.length + '\\ \\text{of the}\\ ' + N + '\\ \\text{outcomes}', '$' + sym + ' =$ ' + setT(chosen)));
+        out.append(K.answer(label, '|' + sym + '| = ' + chosen.length + '\\ \\text{of the}\\ ' + N + '\\ \\text{outcomes}', '$' + sym + ' =$ ' + setT(chosen)));
         out.append(K.card('The outcomes',
           K.p('$A$ = ' + A.name + '. $B$ = ' + B.name + '. Coloured: $' + sym + '$. The small letters show which events each outcome is in.'),
           coinRows(S, { cls: o => (chosen.includes(o) ? 'hi' : ''), tag: o => (A.test(o) ? 'A' : '') + (B.test(o) ? 'B' : '') })));
@@ -451,7 +387,7 @@
           K.grid(['$A$', '$A^c$', 'all'], ['$B$', '$B^c$', 'all'], (r, c, i, j) => (i < 2 && j < 2 ? cell(parts[i][j])
             : { html: '<b>' + (i === 2 && j === 2 ? N : i === 2 ? parts[0][j].length + parts[1][j].length : parts[i][0].length + parts[i][1].length) + '</b>' }))));
         out.append(K.card('Step by step',
-          flowSteps([
+          K.steps([
             { text: '$A$ = ' + A.name + '. Go through all ' + N + ' outcomes and keep those that fit the rule: $A =$ ' + setT(inA) + '.', tex: '|A| = ' + inA.length },
             { text: '$B$ = ' + B.name + ': $B =$ ' + setT(inB) + '.', tex: '|B| = ' + inB.length },
             { text: '"Not $A$" ($A^c$, the <b>complement</b>) holds the outcomes of $S$ that are not in $A$: ' + setT(notA) + '. Count it by taking $A$ away from all outcomes:', tex: '|A^c| = |S| - |A| = ' + N + ' - ' + inA.length + ' = ' + notA.length },
@@ -463,7 +399,7 @@
         const notOr = S.filter(o => !or.includes(o)), neither = parts[1][1], ok = notOr.length === neither.length && notOr.every(o => neither.includes(o)) && or.length === inA.length + inB.length - and.length;
         out.append(K.card('Check: "not ($A$ or $B$)" is "not $A$ and not $B$"',
           K.p('An outcome misses "$A$ or $B$" exactly when it misses both. Count both sides.'),
-          flowSteps([
+          K.steps([
             { text: 'Left side: everything outside $A \\cup B$.', tex: '|(A \\cup B)^c| = ' + N + ' - ' + or.length + ' = ' + notOr.length },
             { text: 'Right side: the cell "$A^c$ and $B^c$" of the table: ' + setT(neither) + '.', tex: '|A^c \\cap B^c| = ' + neither.length },
           ]),
@@ -489,10 +425,10 @@
         if (!p) return;
         const q = F(1).sub(p), S = outcomes(n), N = S.length, inE = S.filter(E.test), notE = S.filter(o => !E.test(o));
         const ph = perHeads(n, p), PE = chance(inE, n, ph), PnE = chance(notE, n, ph), byCount = F(inE.length, N), fair = p.eq(F(1, 2));
-        out.append(flowAnswer('$P(E)$ for $E$ = ' + E.name + ', with $n = ' + n + '$ tosses and $p = ' + T(p) + '$', 'P(E) = ' + TX(PE)));
+        out.append(K.answer('$P(E)$ for $E$ = ' + E.name + ', with $n = ' + n + '$ tosses and $p = ' + T(p) + '$', 'P(E) = ' + TX(PE)));
         const allH = 'H'.repeat(n), allT = 'T'.repeat(n);
         out.append(K.card('Method 1: count the outcomes (fair coin only)',
-          flowSteps([
+          K.steps([
             { text: 'With a fair coin all ' + N + ' outcomes are equally likely, so the probability is the share of the outcomes that are in $E$:', tex: chain('P(E)', '\\frac{\\text{outcomes in } E}{\\text{all outcomes}}', '\\frac{|E|}{|S|}') },
             { text: 'The outcomes in $E$: ' + setT(inE) + '.', tex: '|E| = ' + inE.length },
             { text: 'All outcomes: 2 faces for each of the ' + tosses(n) + '.', tex: '|S| = 2^{' + n + '} = ' + N },
@@ -506,7 +442,7 @@
           : K.table(['heads $h$', 'outcomes of $E$ with $h$ heads', 'chance of one', 'together'], countHeads(inE, n).map((c, i) => [i, c]).filter(([, c]) => c)
             .map(([i, c]) => ['$' + i + '$', '$' + c + '$', '$' + [powT(p, i), powT(q, n - i)].filter(Boolean).join('\\cdot ') + ' = ' + T(ph[i]) + '$', '$' + T(ph[i].mul(c)) + '$']));
         out.append(K.card('Method 2: multiply along each path, then add',
-          flowSteps([
+          K.steps([
             { text: 'One toss shows heads with chance $p = ' + T(p) + '$ and tails with chance $1 - p = ' + T(q) + '$. The tosses do not affect each other, so the chance of a whole outcome is the product of the chances along its path in the tree. For example:', tex: chain('P(\\text{' + ex + '})', path(ex), pathN(ex), T(ph[heads(ex)])) },
             { text: 'An outcome with $h$ heads and $' + n + ' - h$ tails has chance $p^{h}(1-p)^{' + n + '-h}$, whatever the order. Add over the outcomes of $E$, grouped by their number of heads (table below):', tex: 'P(E) = ' + sm.sym },
             { text: 'Put in $p = ' + T(p) + '$:', tex: chain('P(E)', sm.nums, ...(sm.terms > 1 ? [sm.vals] : [])) },
@@ -520,7 +456,7 @@
           K.table(['method', '$P(E)$'], [['counting (assumes a fair coin)', '$' + TX(byCount) + '$'], ['multiplying (your $p = ' + T(p) + '$)', '$' + TX(PE) + '$']]),
           fair ? K.note('The coin is fair, so both methods agree ✓', 'good')
             : K.note(agree ? 'Here the two numbers happen to agree, but counting is only safe for a fair coin.' : 'They differ: counting treats every outcome as equally likely, which is wrong for $p = ' + T(p) + '$. Multiplying along the paths is right for every coin.', agree ? '' : 'warn'),
-          flowSteps([
+          K.steps([
             { text: '"Not $E$" ($E^c$) holds the other ' + pl(notE.length, 'outcome') + '. Its chance by method 2:', tex: chain('P(E^c)', sumT(notE, n, p).nums, TX(PnE)) },
             { text: 'Every outcome is in $E$ or in $E^c$, never both, so the two chances must add up to 1:', tex: 'P(E) + P(E^c) = ' + T(PE) + ' + ' + T(PnE) + ' = ' + T(sum) },
           ]),
@@ -553,12 +489,12 @@
           K.p('$A$ = ' + A.name + '. $B$ = ' + B.name + '. Faded: the outcomes outside $B$, ruled out once you know $B$ happened. Dashed: the outcomes of $B$, the new sample space. Coloured: the outcomes of $B$ where $A$ happens too ($A \\cap B$).'),
           coinRows(S, { cls: o => (!B.test(o) ? 'cl-dim' : A.test(o) ? 'hi' : 'cl-in'), tag: o => (A.test(o) ? 'A' : '') + (B.test(o) ? 'B' : '') }));
         if (PB.isZero()) {
-          out.append(flowAnswer('$P(A \\mid B)$', '\\text{not defined, because } P(B) = 0'),
+          out.append(K.answer('$P(A \\mid B)$', '\\text{not defined, because } P(B) = 0'),
             K.note((inB.length ? 'Every outcome of $B$ has chance 0 when $p = ' + T(p) + '$' : 'No outcome fits the rule of $B$') + ', so $B$ never happens and there is nothing to shrink to. Choose another $B$ or $p$.', 'warn'), pic);
           return;
         }
         const PAgB = PAB.div(PB);
-        out.append(flowAnswer('$P(A \\mid B)$: the chance of $A$ = ' + A.name + ', when you know that $B$ = ' + B.name, 'P(A \\mid B) = ' + TX(PAgB)), pic);
+        out.append(K.answer('$P(A \\mid B)$: the chance of $A$ = ' + A.name + ', when you know that $B$ = ' + B.name, 'P(A \\mid B) = ' + TX(PAgB)), pic);
         // method 1: work inside B only
         const m1 = [{ text: 'You are told that $B$ happened, so only its outcomes are still possible: ' + setT(inB) + '.', tex: '|B| = ' + inB.length }];
         let m1val, m1table = null;
@@ -578,9 +514,9 @@
             : K.table(['heads $h$', 'outcomes of $B$', 'of them in $A$', 'old chance of one', 'new chance of one'], countHeads(inB, n).map((c, i) => [i, c]).filter(([, c]) => c)
               .map(([i, c]) => ['$' + i + '$', '$' + c + '$', '$' + cAB[i] + '$', '$' + T(ph[i]) + '$', '$' + T(ph[i].div(PB)) + '$']));
         }
-        out.append(K.card('Method 1: shrink the sample space to $B$', m1table, flowSteps(m1)));
+        out.append(K.card('Method 1: shrink the sample space to $B$', m1table, K.steps(m1)));
         out.append(K.card('Method 2: the formula',
-          flowSteps([
+          K.steps([
             { text: 'The chance that both happen, in the full sample space ($A \\cap B$ = ' + setT(AB) + '):', tex: chain('P(A \\cap B)', sumT(AB, n, p).nums, TX(PAB)) },
             { text: 'The chance of $B$:', tex: chain('P(B)', sumT(inB, n, p).nums, TX(PB)) },
             { text: 'Divide:', tex: chain('P(A \\mid B)', '\\frac{P(A \\cap B)}{P(B)}', T(PAB) + ' \\div ' + T(PB), TX(PAgB)) },
@@ -588,7 +524,7 @@
           K.note(m1val.eq(PAgB) ? 'Both methods give $' + T(PAgB) + '$ ✓' : 'The two methods differ ✗', m1val.eq(PAgB) ? 'good' : 'warn')));
         const PBgA = PA.isZero() ? null : PAB.div(PA), PnAgB = chance(nAB, n, ph).div(PB), ok = PAgB.add(PnAgB).eq(1);
         out.append(K.card('Careful: knowing $B$ changes the question',
-          flowSteps([
+          K.steps([
             { text: 'Before you are told anything, the chance of $A$ is', tex: chain('P(A)', sumT(inA, n, p).nums, TX(PA)) },
             { text: 'Knowing $B$ ' + (PAgB.eq(PA) ? 'leaves it unchanged' : PAgB.cmp(PA) > 0 ? 'raises it' : 'lowers it') + ':', tex: 'P(A \\mid B) = ' + TX(PAgB) },
             PBgA ? { text: '"$B$ given $A$" is a different question: it divides by $P(A)$, not by $P(B)$.', tex: chain('P(B \\mid A)', '\\frac{P(A \\cap B)}{P(A)}', T(PAB) + ' \\div ' + T(PA), TX(PBgA)) }
@@ -621,11 +557,11 @@
         const inA = S.filter(A.test), inB = S.filter(B.test), notA = S.filter(o => !A.test(o)), AB = inA.filter(B.test);
         const parts = [[AB, inA.filter(o => !B.test(o))], [notA.filter(B.test), notA.filter(o => !B.test(o))]];
         const PA = chance(inA, n, ph), PB = chance(inB, n, ph), PAB = chance(AB, n, ph), prod = PA.mul(PB), indep = PAB.eq(prod);
-        out.append(flowAnswer('Are $A$ = ' + A.name + ' and $B$ = ' + B.name + ' independent?',
+        out.append(K.answer('Are $A$ = ' + A.name + ' and $B$ = ' + B.name + ' independent?',
           '\\begin{aligned} P(A \\cap B) &= ' + T(PAB) + ' \\\\ P(A)\\,P(B) &= ' + T(prod) + '\\end{aligned}',
           indep ? '<b>Yes</b>: the two numbers are equal, so $A$ and $B$ are independent.' : '<b>No</b>: the two numbers differ, so $A$ and $B$ are dependent.'));
         out.append(K.card('Step by step',
-          flowSteps([
+          K.steps([
             { text: '$A$ = ' + A.name + ': ' + setT(inA) + '. Add the chances of its outcomes (one with $h$ heads has chance $p^{h}(1-p)^{' + n + '-h}$):', tex: chain('P(A)', sumT(inA, n, p).nums, TX(PA)) },
             { text: '$B$ = ' + B.name + ': ' + setT(inB) + '.', tex: chain('P(B)', sumT(inB, n, p).nums, TX(PB)) },
             { text: '"$A$ and $B$": ' + setT(AB) + '.', tex: chain('P(A \\cap B)', sumT(AB, n, p).nums, TX(PAB)) },
@@ -648,7 +584,7 @@
         const both = AB.length > 0;
         out.append(K.card('Independent is not the same as disjoint',
           K.p('<b>Disjoint</b> (mutually exclusive) means the events cannot happen together: they have no common outcome, so $P(A \\cap B) = 0$. <b>Independent</b> means knowing one does not change the chance of the other.'),
-          flowSteps([
+          K.steps([
             { text: 'If $A$ and $B$ are disjoint and both can happen ($P(A) > 0$ and $P(B) > 0$), then', tex: 'P(A \\cap B) = 0 \\quad\\text{but}\\quad P(A)\\,P(B) > 0' },
             { text: 'So disjoint events are <b>dependent</b>: if you learn that $B$ happened, you know for sure that $A$ did not.' },
             { text: 'And independent events with chances above 0 must overlap, because then $P(A \\cap B) = P(A)\\,P(B) > 0$.' },
@@ -659,7 +595,7 @@
         const PAnB = chance(parts[0][1], n, ph), prod2 = PA.mul(F(1).sub(PB)), same = PAnB.eq(prod2) === indep;
         out.append(K.card('Check: $A$ and "not $B$"',
           K.p('If $A$ and $B$ are independent, so are $A$ and $B^c$ (and the other way round). Test it with your numbers:'),
-          flowSteps([
+          K.steps([
             { text: '"$A$ and not $B$": ' + setT(parts[0][1]) + '.', tex: 'P(A \\cap B^c) = ' + TX(PAnB) },
             { text: 'Multiply:', tex: 'P(A)\\,P(B^c) = ' + T(PA) + ' \\times ' + T(F(1).sub(PB)) + ' = ' + TX(prod2) },
           ]),
@@ -702,7 +638,7 @@
         const like = pr.map(x => (face === 'H' ? x : F(1).sub(x))), joint = c.map((x, i) => x.mul(like[i])), total = sumF(joint);
         if (total.isZero()) { out.append(K.note('None of these coins can show ' + word + ', so $P(' + face + ') = 0$ and Bayes\' rule would divide by 0. Change a coin or the face.', 'warn'), K.card('The tree', coinTree(c, pr, face))); return; }
         const post = joint.map(x => x.div(total)), ids = c.map((_, i) => i + 1);
-        out.append(flowAnswer('You saw ' + word + '. The chance of each coin now:', '\\begin{aligned}' + ids.map(i => 'P(C_' + i + ' \\mid ' + face + ') &= ' + TX(post[i - 1])).join(' \\\\ ') + '\\end{aligned}'));
+        out.append(K.answer('You saw ' + word + '. The chance of each coin now:', '\\begin{aligned}' + ids.map(i => 'P(C_' + i + ' \\mid ' + face + ') &= ' + TX(post[i - 1])).join(' \\\\ ') + '\\end{aligned}'));
         out.append(K.card('The tree',
           K.p('First you pick a coin (the first branches, with the chances of picking), then it shows H or T (the second branches). The paths that end in ' + word + ' are coloured; at the end of each path is its chance, the product along it.'),
           coinTree(c, pr, face)));
@@ -711,12 +647,12 @@
         c.forEach((x, i) => st1.push({ text: i === 0 ? 'Pick coin 1 <b>and</b> see ' + word + ': multiply along its path, the chance of picking the coin times the chance that it shows ' + word + '.' : 'The same for coin ' + (i + 1) + ':',
           tex: chain('P(C_' + (i + 1) + ' \\cap ' + face + ')', 'P(C_' + (i + 1) + ')\\,P(' + face + ' \\mid C_' + (i + 1) + ')', T(x) + ' \\times ' + likeT(i) + ' = ' + T(joint[i])) }));
         st1.push({ text: 'You pick exactly one coin, so these paths do not overlap. Add them: this is the law of total probability.', tex: chain('P(' + face + ')', joint.map(T).join(' + '), TX(total)) });
-        out.append(K.card('Step 1: the chance of ' + word, flowSteps(st1)));
+        out.append(K.card('Step 1: the chance of ' + word, K.steps(st1)));
         const st2 = post.map((x, i) => ({ text: i === 0 ? 'Now turn it around. Of all the ways to see ' + word + ', what share comes through coin 1? Divide its path by the total: this is Bayes\' rule.' : 'The same for coin ' + (i + 1) + ':',
           tex: chain('P(C_' + (i + 1) + ' \\mid ' + face + ')', '\\frac{P(C_' + (i + 1) + ' \\cap ' + face + ')}{P(' + face + ')}', T(joint[i]) + ' \\div ' + T(total) + ' = ' + TX(x)) }));
         const sumPost = sumF(post);
         out.append(K.card('Step 2: which coin was it? (Bayes\' rule)',
-          flowSteps(st2),
+          K.steps(st2),
           K.table(['coin', 'before', '$P(' + face + ' \\mid C_i)$', 'path', 'after'], c.map((x, i) => ['$C_' + (i + 1) + '$', '$' + T(x) + '$', '$' + T(like[i]) + '$', '$' + T(joint[i]) + '$', '$' + T(post[i]) + '$'])),
           bars2({ xs: ids.map(i => 'C' + i), a: c, b: post, aName: 'before the toss', bName: 'after seeing ' + word, xName: 'coin' }),
           K.p('A coin that makes ' + word + ' more likely than the bag as a whole ($P(' + face + ' \\mid C_i) > P(' + face + ') = ' + T(total) + '$) gains weight; a coin that makes it less likely loses weight.'),
@@ -741,7 +677,7 @@
         const n = s.v.n, X = RV[s.v.x], p = readP(out, s.v.p);
         if (!p) return;
         const S = outcomes(n), N = S.length, ph = perHeads(n, p), d = dist(n, p, X);
-        out.append(flowAnswer('$X$ = ' + X.name + ', for ' + tosses(n) + ' with $p = ' + T(p) + '$: its values and their chances', '\\begin{aligned}' + d.map(r => 'P(X = ' + r.x + ') &= ' + TX(r.P)).join(' \\\\ ') + '\\end{aligned}'));
+        out.append(K.answer('$X$ = ' + X.name + ', for ' + tosses(n) + ' with $p = ' + T(p) + '$: its values and their chances', '\\begin{aligned}' + d.map(r => 'P(X = ' + r.x + ') &= ' + TX(r.P)).join(' \\\\ ') + '\\end{aligned}'));
         out.append(K.card('The rule, outcome by outcome',
           K.p('Each outcome on the left gets one number on the right. Different outcomes may share a number, but no outcome gets two: that is what makes $X$ a function.'),
           n <= 4 ? mapPic(S, X) : null,
@@ -752,7 +688,7 @@
         const sum = sumF(d.map(r => r.P)), cnt = d.reduce((a, r) => a + r.outs.length, 0);
         out.append(K.card('The events $X = x$',
           K.table(['$x$', 'the event $X = x$', 'outcomes', '$P(X = x)$'], d.map(r => ['$' + r.x + '$', '<div class="cl-cell"><span class="cl-set">{' + r.outs.join(', ') + '}</span></div>', '$' + r.outs.length + '$', '$' + TX(r.P) + '$'])),
-          flowSteps(d.map((r, i) => ({ text: i > 0 ? '' : p.eq(F(1, 2)) ? 'With a fair coin each outcome has chance $\\left(\\frac12\\right)^{' + n + '}$, so the chance of an event is (its number of outcomes) × that:' : 'Each event adds up the chances of its outcomes; an outcome with $h$ heads has chance $p^{h}(1-p)^{' + n + '-h}$:', tex: chain('P(X = ' + r.x + ')', sumT(r.outs, n, p).nums, TX(r.P)) }))),
+          K.steps(d.map((r, i) => ({ text: i > 0 ? '' : p.eq(F(1, 2)) ? 'With a fair coin each outcome has chance $\\left(\\frac12\\right)^{' + n + '}$, so the chance of an event is (its number of outcomes) × that:' : 'Each event adds up the chances of its outcomes; an outcome with $h$ heads has chance $p^{h}(1-p)^{' + n + '-h}$:', tex: chain('P(X = ' + r.x + ')', sumT(r.outs, n, p).nums, TX(r.P)) }))),
           K.note('Check: the events $X = x$ do not overlap and every outcome is in one of them: $' + d.map(r => r.outs.length).join(' + ') + ' = ' + cnt + '$ outcomes ' + (cnt === N ? '✓' : '✗') + ', and the chances add up to $' + T(sum) + '$ ' + (sum.eq(1) ? '✓' : '✗'), cnt === N && sum.eq(1) ? 'good' : 'warn')));
       }
     },
@@ -780,7 +716,7 @@
         d.reduce((acc, r, i) => (cum[i] = acc.add(r.P)), F(0));
         const Fx = v => sumF(d.filter(r => r.x <= v).map(r => r.P)), inside = d.filter(r => r.x > a && r.x <= b), Pin = sumF(inside.map(r => r.P));
         const Fa = Fx(a), Fb = Fx(b), empty = a >= b;
-        out.append(flowAnswer('$P(a < X \\le b)$ with $a = ' + a + '$ and $b = ' + b + '$, for $X$ = ' + X.name + ' ($n = ' + n + '$, $p = ' + T(p) + '$)',
+        out.append(K.answer('$P(a < X \\le b)$ with $a = ' + a + '$ and $b = ' + b + '$, for $X$ = ' + X.name + ' ($n = ' + n + '$, $p = ' + T(p) + '$)',
           'P(' + a + ' < X \\le ' + b + ') = ' + (empty ? '0' : TX(Fb.sub(Fa))),
           empty ? 'No number $x$ has $' + a + ' < x \\le ' + b + '$ when $a \\ge b$, so the interval is empty.' : null));
         const hiIdx = d.map((r, i) => (r.x > a && r.x <= b ? i : -1)).filter(i => i >= 0);
@@ -798,7 +734,7 @@
         out.append(K.card('The CDF: $F(x) = P(X \\le x)$',
           K.p('$F$ adds the chances from the left. It is flat between the values of $X$ and jumps by $p(x)$ at each value $x$, from 0 on the far left to 1 on the far right. The dashed lines mark $a = ' + a + '$, $b = ' + b + '$ and the heights $F(a)$ and $F(b)$: the gap between those heights is the answer.'),
           cdfMarked(xs, d.map(r => num(r.P)), a, b, num(Fa), num(Fb)),
-          flowSteps(cdfSteps),
+          K.steps(cdfSteps),
           empty ? K.note('With $a \\ge b$ the interval is empty: the chance is 0 (the subtraction $F(b) - F(a) = ' + T(Fb.sub(Fa)) + '$ would not be a chance).', '')
             : K.note('Check by adding the PMF directly: $' + (inside.length ? inside.map(r => 'p(' + r.x + ')').join(' + ') + ' = ' + T(Pin) : '0') + '$ ' + (Pin.eq(Fb.sub(Fa)) ? '✓' : '✗'), Pin.eq(Fb.sub(Fa)) ? 'good' : 'warn')));
         const kinds = [
@@ -832,7 +768,7 @@
         const q = F(1).sub(p), d = dist(n, p, X), xs = d.map(r => r.x);
         const mu = sumF(d.map(r => r.P.mul(r.x))), ex2 = sumF(d.map(r => r.P.mul(r.x * r.x))), vr = ex2.sub(mu.pow(2));
         const dev = d.map(r => F(r.x).sub(mu).pow(2).mul(r.P)), vdef = sumF(dev);
-        out.append(flowAnswer('For $X$ = ' + X.name + ', $n = ' + n + '$, $p = ' + T(p) + '$', '\\begin{aligned} \\E[X] &= ' + TX(mu) + ' \\\\ \\Var(X) &= ' + TX(vr) + ' \\\\ \\SD(X) &' + sqrtT(vr) + '\\end{aligned}'));
+        out.append(K.answer('For $X$ = ' + X.name + ', $n = ' + n + '$, $p = ' + T(p) + '$', '\\begin{aligned} \\E[X] &= ' + TX(mu) + ' \\\\ \\Var(X) &= ' + TX(vr) + ' \\\\ \\SD(X) &' + sqrtT(vr) + '\\end{aligned}'));
         const chart = K.bars({ xs, ys: d.map(r => num(r.P)), xName: 'x', yName: 'p(x)' });
         barsMark(chart, xs, num(mu), 'mean');
         const short = d.length <= 7, sq = x => nb(x) + '^2';
@@ -842,7 +778,7 @@
           K.table(['$x$', '$p(x)$', '$x\\,p(x)$', '$x^2\\,p(x)$', '$(x-\\mu)^2\\,p(x)$'],
             d.map((r, i) => ['$' + r.x + '$', '$' + T(r.P) + '$', '$' + T(r.P.mul(r.x)) + '$', '$' + T(r.P.mul(r.x * r.x)) + '$', '$' + T(dev[i]) + '$'])
               .concat([['sum', '$' + T(sumF(d.map(r => r.P))) + '$', '$' + T(mu) + '$', '$' + T(ex2) + '$', '$' + T(vdef) + '$']]), { hi: new Set([d.length]) }),
-          flowSteps([
+          K.steps([
             { text: 'Multiply each value by its chance and add (the $x\\,p(x)$ column):', tex: chain('\\E[X]', '\\sum_x x\\,p(x)', ...(short ? [d.map(r => nb(r.x) + '\\cdot ' + T(r.P)).join(' + ')] : []), TX(mu)) },
             { text: 'Do the same with $x^2$ in place of $x$ (the $x^2\\,p(x)$ column):', tex: chain('\\E[X^2]', '\\sum_x x^2\\,p(x)', ...(short ? [d.map(r => sq(r.x) + '\\cdot ' + T(r.P)).join(' + ')] : []), TX(ex2)) },
             { text: 'The variance is the mean of the squares minus the square of the mean:', tex: chain('\\Var(X)', '\\E[X^2] - (\\E[X])^2', T(ex2) + ' - \\left(' + T(mu) + '\\right)^2', T(ex2) + ' - ' + T(mu.pow(2)), TX(vr)) },
@@ -852,7 +788,7 @@
         const np = p.mul(n), npq = p.mul(q).mul(n);
         if (key === 'heads') {
           out.append(K.card('The shortcut: $np$ and $np(1-p)$',
-            flowSteps([
+            K.steps([
               { text: 'Write $X = ' + (n <= 3 ? Array.from({ length: n }, (_, i) => 'X_' + (i + 1)).join(' + ') : 'X_1 + X_2 + \\dots + X_{' + n + '}') + '$, where $X_i = 1$ if toss $i$ is heads and $0$ if not. Each $X_i$ is a Bernoulli variable (see that topic):', tex: '\\begin{aligned} \\E[X_i] &= p = ' + T(p) + ' \\\\ \\Var(X_i) &= p(1-p) = ' + T(p) + ' \\times ' + T(q) + ' = ' + T(p.mul(q)) + '\\end{aligned}' },
               { text: 'Expectations always add up:', tex: chain('\\E[X]', 'np', n + ' \\times ' + T(p), TX(np)) },
               { text: 'The tosses are independent, so the variances add up too:', tex: chain('\\Var(X)', 'np(1-p)', n + ' \\times ' + T(p) + ' \\times ' + T(q), TX(npq)) },
@@ -861,7 +797,7 @@
         } else if (key === 'diff') {
           const m2 = np.mul(2).sub(n), v2 = npq.mul(4);
           out.append(K.card('The shortcut: $X = 2H - n$',
-            flowSteps([
+            K.steps([
               { text: 'Let $H$ be the number of heads. The tails are the other $' + n + ' - H$ tosses, so', tex: 'X = H - (' + n + ' - H) = 2H - ' + n },
               { text: 'For the number of heads, $\\E[H] = np$ and $\\Var(H) = np(1-p)$ (choose "Number of heads" above to see why):', tex: '\\begin{aligned} \\E[H] &= ' + n + ' \\times ' + T(p) + ' = ' + T(np) + ' \\\\ \\Var(H) &= ' + n + ' \\times ' + T(p) + ' \\times ' + T(q) + ' = ' + T(npq) + '\\end{aligned}' },
               { text: 'Multiplying by 2 doubles the mean, and taking away ' + n + ' moves it down by ' + n + ': $\\E[aH + b] = a\\,\\E[H] + b$.', tex: '\\E[X] = 2 \\times ' + T(np) + ' - ' + n + ' = ' + TX(m2) },
@@ -885,13 +821,13 @@
         const p = readP(out, s.v.p);
         if (!p) return;
         const q = F(1).sub(p), pq = p.mul(q), half = F(1, 2);
-        out.append(flowAnswer('$X \\sim$ Bernoulli$(' + T(p) + ')$: one toss, $X = 1$ for heads and $0$ for tails', '\\begin{aligned} \\E[X] &= ' + TX(p) + ' \\\\ \\Var(X) &= ' + TX(pq) + ' \\\\ \\SD(X) &' + sqrtT(pq) + '\\end{aligned}'));
+        out.append(K.answer('$X \\sim$ Bernoulli$(' + T(p) + ')$: one toss, $X = 1$ for heads and $0$ for tails', '\\begin{aligned} \\E[X] &= ' + TX(p) + ' \\\\ \\Var(X) &= ' + TX(pq) + ' \\\\ \\SD(X) &' + sqrtT(pq) + '\\end{aligned}'));
         out.append(K.card('The PMF',
           K.table(['$x$', '$P(X = x)$'], [['$0$ (tails)', '$1 - p = ' + TX(q) + '$'], ['$1$ (heads)', '$p = ' + TX(p) + '$']]),
           K.bars({ xs: [0, 1], ys: [num(q), num(p)], xName: 'x', yName: 'P(X = x)' }),
           K.note('Check: $' + T(q) + ' + ' + T(p) + ' = ' + T(q.add(p)) + '$ ✓', 'good')));
         out.append(K.card('Mean and variance, step by step',
-          flowSteps([
+          K.steps([
             { text: 'Mean: each value times its chance, added.', tex: chain('\\E[X]', '0 \\cdot (1-p) + 1 \\cdot p', '0 \\cdot ' + T(q) + ' + 1 \\cdot ' + T(p), TX(p)) },
             { text: '$X^2 = X$, because $0^2 = 0$ and $1^2 = 1$. So the mean of $X^2$ is the same:', tex: chain('\\E[X^2]', '0^2 \\cdot (1-p) + 1^2 \\cdot p', 'p = ' + T(p)) },
             { text: 'Variance: the mean of the square minus the square of the mean.', tex: chain('\\Var(X)', '\\E[X^2] - (\\E[X])^2', 'p - p^2 = p(1-p)', T(p) + ' \\times ' + T(q), TX(pq)) },
@@ -901,7 +837,7 @@
         out.append(K.card('Which coin is the hardest to predict?',
           K.p('The variance $p(1-p)$ for every $p$ from 0 to 1. Your coin is the dot.'),
           varCurve(p),
-          flowSteps([
+          K.steps([
             { text: 'Complete the square:', tex: chain('p(1-p)', 'p - p^2', '\\frac14 - \\left(p - \\frac12\\right)^2') },
             { text: 'With your $p$:', tex: chain('\\frac14 - \\left(' + T(p) + ' - \\frac12\\right)^2', '\\frac14 - ' + T(dd), T(back)) },
             { text: 'A square is never negative, so $p(1-p) \\le \\frac14$, with equality only at $p = \\frac12$. A fair coin is the hardest to predict; a coin with $p$ near 0 or 1 is almost certain. Stats 1 lecture 11.1 finds the same with calculus: the derivative $1 - 2p$ is 0 at $p = \\frac12$.' },
@@ -928,12 +864,12 @@
         const q = F(1).sub(p);
         const pmf = []; for (let j = 0; j <= n; j++) pmf.push(K.C(n, j).mul(p.pow(j)).mul(q.pow(n - j)));
         const pk = pmf[k];
-        out.append(flowAnswer('$P(X = ' + k + ')$ for $X \\sim \\Bin(' + n + ', ' + T(p) + ')$', 'P(X=' + k + ') = ' + TD(pk, 6)));
+        out.append(K.answer('$P(X = ' + k + ')$ for $X \\sim \\Bin(' + n + ', ' + T(p) + ')$', 'P(X=' + k + ') = ' + TD(pk, 6)));
 
         // why: one particular sequence, then how many sequences
         const one = 'H'.repeat(k) + 'T'.repeat(n - k);
         out.append(K.card('Where the formula comes from',
-          flowSteps([
+          K.steps([
             { text: 'Take <b>one</b> sequence with exactly ' + k + ' heads, for example <b>' + (n <= 12 ? one : one.slice(0, 12) + '…') + '</b>. The tosses are independent, so multiply the chance of each toss: ' + k + ' heads at $p$ each and ' + (n - k) + ' tails at $1-p$ each.',
               tex: 'P(\\text{' + (n <= 8 ? one : 'that sequence') + '}) = p^{' + k + '}(1-p)^{' + (n - k) + '} = \\left(' + T(p) + '\\right)^{' + k + '}\\left(' + T(q) + '\\right)^{' + (n - k) + '} = ' + T(p.pow(k).mul(q.pow(n - k))) },
             { text: 'Every sequence with ' + k + ' heads has this same chance, only the positions of the heads change. Choosing the ' + k + ' positions out of ' + n + ' can be done in $\\binom{' + n + '}{' + k + '}$ ways.',
@@ -953,7 +889,7 @@
         // mean and variance
         const mean = p.mul(n), varr = p.mul(q).mul(n);
         out.append(K.card('Mean and variance',
-          flowSteps([
+          K.steps([
             { text: '$X$ is a sum of $n$ Bernoulli tosses $X_1 + \\dots + X_n$, each with mean $p$. Expectation adds up:', tex: '\\E[X] = np = ' + n + '\\times ' + T(p) + ' = ' + TD(mean) },
             { text: 'The tosses are independent, so variances add up too; one toss has variance $p(1-p)$:', tex: '\\Var(X) = np(1-p) = ' + n + '\\times ' + T(p) + '\\times ' + T(q) + ' = ' + TD(varr) },
             { text: 'The standard deviation is the square root:', tex: '\\SD(X) = \\sqrt{' + T(varr) + '} \\approx ' + Math.sqrt(varr.num()).toFixed(4) },
@@ -983,10 +919,10 @@
         if (!p) return;
         if (p.isZero()) { out.append(K.note('With $p = 0$ the coin never shows heads, so the wait never ends and $X$ has no value. Choose $p$ above 0.', 'warn')); return; }
         const q = F(1).sub(p), pk = q.pow(k - 1).mul(p), qk = q.pow(k), Fk = F(1).sub(qk), mean = F(1).div(p), pf = num(p), qf = 1 - pf;
-        out.append(flowAnswer('$X$ = the number of tosses until the first head, with $p = ' + T(p) + '$', 'P(X = ' + k + ') = ' + TX(pk)));
+        out.append(K.answer('$X$ = the number of tosses until the first head, with $p = ' + T(p) + '$', 'P(X = ' + k + ') = ' + TX(pk)));
         const seq = 'T'.repeat(k - 1) + 'H';
         out.append(K.card('Why $(1-p)^{k-1}\\,p$',
-          flowSteps([
+          K.steps([
             { text: k === 1 ? '$X = 1$ means: the first toss is heads.' : '$X = ' + k + '$ means: tosses 1 to ' + (k - 1) + ' are all tails and toss ' + k + ' is heads. Only one sequence does that:' },
             { text: k === 1 ? 'Its chance is just $p$:' : 'The tosses are independent, so multiply: ' + pl(k - 1, 'tail') + ' at $1 - p$ each, then one head at $p$.', tex: chain('P(X = ' + k + ')', (k === 1 ? 'p' : '(1-p)^{' + (k - 1) + '}\\,p'), [powT(q, k - 1), T(p)].filter(Boolean).join(' \\cdot '), TX(pk)) },
           ]),
@@ -999,7 +935,7 @@
           K.p('The chances fall by the factor $1 - p = ' + T(q) + '$ from each value to the next. Shown up to $' + Kmax + '$; they go on for ever, smaller and smaller.'),
           K.bars({ xs, ys, hi: k <= Kmax ? [k - 1] : [], xName: 'k (tosses until the first head)', yName: 'P(X = k)' }),
           K.cdf({ xs, ps: ys, xName: 'k', mark: k <= Kmax ? k : null }),
-          flowSteps([
+          K.steps([
             { text: '$X > ' + k + '$ means the first ' + k + ' tosses are all tails:', tex: chain('P(X > ' + k + ')', '(1-p)^{' + k + '}', powT(q, k), TX(qk)) },
             { text: 'So the CDF, the chance of a head within ' + tosses(k) + ', is', tex: chain('F(' + k + ')', 'P(X \\le ' + k + ')', '1 - (1-p)^{' + k + '}', '1 - ' + T(qk), TX(Fk)) },
           ]),
@@ -1009,7 +945,7 @@
         const stop = Math.min(2e5, Math.ceil(60 / pf) + 10);
         for (; j <= stop; j++) { part += j * v; v *= qf; }
         out.append(K.card('Mean: $1/p$',
-          flowSteps([
+          K.steps([
             { text: 'Look at the first toss. With chance $p$ it is heads: you stop after 1 toss. With chance $1 - p$ it is tails: you have used 1 toss and, because the coin has no memory, the rest of the wait is a fresh copy of $X$. So on average', tex: '\\E[X] = 1 + (1-p)\\,\\E[X]' },
             { text: 'Take $(1-p)\\,\\E[X]$ to the left side:', tex: '\\E[X] - (1-p)\\,\\E[X] = p\\,\\E[X] = 1' },
             { text: 'Divide by $p$:', tex: '\\E[X] = \\frac{1}{p} = 1 \\div ' + T(p) + ' = ' + TX(mean) },
@@ -1021,7 +957,7 @@
         const ratio = qmn.div(qm);
         out.append(K.card('No memory: $P(X > m + n \\mid X > m) = P(X > n)$',
           K.p('Suppose the first $m = ' + m + '$ tosses were all tails. Is a head now "due"? Find the chance of needing more than $n = ' + nn + '$ further tosses.'),
-          flowSteps([
+          K.steps([
             { text: 'Conditional probability:', tex: chain('P(X > ' + (m + nn) + ' \\mid X > ' + m + ')', '\\frac{P(X > ' + (m + nn) + ' \\text{ and } X > ' + m + ')}{P(X > ' + m + ')}') },
             { text: 'If $X > ' + (m + nn) + '$, then surely $X > ' + m + '$, so the top is just $P(X > ' + (m + nn) + ')$. Use $P(X > t) = (1-p)^{t}$:', tex: chain('P(X > ' + (m + nn) + ' \\mid X > ' + m + ')', '\\frac{(1-p)^{' + (m + nn) + '}}{(1-p)^{' + m + '}}', T(qmn) + ' \\div ' + T(qm), TX(ratio)) },
             { text: 'Now a fresh start, with no tosses so far:', tex: chain('P(X > ' + nn + ')', '(1-p)^{' + nn + '}', TX(qn)) },
@@ -1049,13 +985,13 @@
         if (p.isZero()) { out.append(K.note('With $p = 0$ the coin never shows heads, so the wait never ends. Choose $p$ above 0.', 'warn')); return; }
         const q = F(1).sub(p), pf = num(p), qf = 1 - pf, mean = F(r).div(p);
         const Ck = K.C(k - 1, r - 1), one = p.pow(r).mul(q.pow(Math.max(0, k - r))), pk = k < r ? F(0) : Ck.mul(one);
-        out.append(flowAnswer('$X$ = the number of tosses until the ' + ord(r) + ' head, with $p = ' + T(p) + '$', 'P(X = ' + k + ') = ' + TX(pk)));
+        out.append(K.answer('$X$ = the number of tosses until the ' + ord(r) + ' head, with $p = ' + T(p) + '$', 'P(X = ' + k + ') = ' + TX(pk)));
         if (k < r) out.append(K.card('Where the binomial coefficient comes from', K.note('You need at least ' + tosses(r) + ' to see ' + pl(r, 'head') + ', so $P(X = ' + k + ') = 0$. Choose $k \\ge ' + r + '$.', '')));
         else {
           const seqs = [];
           if (Ck.n <= 30n && k <= 12) for (const o of outcomes(k - 1)) if (heads(o) === r - 1) seqs.push(o + 'H');
           out.append(K.card('Where the binomial coefficient comes from',
-            flowSteps([
+            K.steps([
               { text: '$X = ' + k + '$ means: toss ' + k + ' is heads and it is the ' + ord(r) + ' head. So ' + (r === 1 ? (k === 1 ? 'there is nothing before it.' : 'the first ' + tosses(k - 1) + ' before it are all tails.') : 'the first ' + tosses(k - 1) + ' hold exactly ' + pl(r - 1, 'head') + ', in any places.') },
               { text: r === 1 ? 'There is just one way to place no heads:' : r === 2 ? 'Choose the place of that one head among the first ' + tosses(k - 1) + ':' : 'Choose the places of those ' + (r - 1) + ' heads among the first ' + tosses(k - 1) + ':', tex: '\\binom{k-1}{r-1} = \\binom{' + (k - 1) + '}{' + (r - 1) + '} = ' + Ck.tex() },
               { text: 'Each such sequence has ' + pl(r, 'head') + ' and ' + pl(k - r, 'tail') + ', so each has the same chance:', tex: chain('p^{' + r + '}(1-p)^{' + (k - r) + '}', [powT(p, r), powT(q, k - r)].filter(Boolean).join(' \\cdot '), TX(one)) },
@@ -1081,7 +1017,7 @@
         for (; j <= stop; j++) { part += j * v; v *= ratio(j); }
         const ok = Math.abs(part - num(mean)) < 1e-6 * Math.max(1, num(mean));
         out.append(K.card('Mean: $r/p$',
-          flowSteps([
+          K.steps([
             { text: 'Split the wait into ' + r + ' part' + (r === 1 ? '' : 's') + ': the tosses until the 1st head' + (r > 1 ? ', then from there until the 2nd head' + (r > 2 ? ', and so on' : '') : '') + '. Each part is a geometric wait with mean $1/p$, because the coin has no memory:', tex: 'X = G_1' + (r > 1 ? ' + G_2' : '') + (r > 2 ? ' + \\dots + G_{' + r + '}' : '') },
             { text: 'Expectations add up:', tex: '\\E[X] = ' + (r === 1 ? '' : r + ' \\times ') + '\\frac{1}{p} = ' + r + ' \\div ' + T(p) + ' = ' + TX(mean) },
           ]),
@@ -1112,7 +1048,7 @@
         const K2 = Math.min(60, Math.max(k + 1, Math.ceil(L + 4 * Math.sqrt(L) + 2), 6));
         const bin = binomFloats(n, pf, K2), po = poisFloats(L, K2), diff = Math.abs(bin[k] - po[k]);
         const exact = n <= 30 ? (k > n ? F(0) : K.C(n, k).mul(p.pow(k)).mul(q.pow(n - k))) : null;
-        out.append(flowAnswer('$P(X = ' + k + ')$ with $n = ' + n + '$ tosses and $p = \\lambda / n = ' + T(p) + '$: binomial and Poisson',
+        out.append(K.answer('$P(X = ' + k + ')$ with $n = ' + n + '$ tosses and $p = \\lambda / n = ' + T(p) + '$: binomial and Poisson',
           '\\begin{aligned} \\text{binomial: } P(X = ' + k + ') &\\approx ' + d6(bin[k]) + ' \\\\ \\text{Poisson: } P(X = ' + k + ') &\\approx ' + d6(po[k]) + '\\end{aligned}',
           'They differ by about $' + d6(diff) + '$.'));
         out.append(K.card('Side by side',
@@ -1121,7 +1057,7 @@
           K.table(['$k$', 'binomial', 'Poisson', 'difference'], bin.map((b, i) => ['$' + i + '$', '$' + d6(b) + '$', '$' + d6(po[i]) + '$', '$' + d6(Math.abs(b - po[i])) + '$']), { hi: new Set([k]) })));
         const f2 = lam.pow(k).div(K.fact(k)), e = Math.exp(-L);
         out.append(K.card('The Poisson PMF, step by step',
-          flowSteps([
+          K.steps([
             { text: 'The Poisson PMF with mean $\\lambda$, for $k = 0, 1, 2, \\dots$ ($e \\approx 2.71828$):', tex: 'P(X = k) = e^{-\\lambda}\\,\\frac{\\lambda^{k}}{k!}' },
             { text: 'Put in $\\lambda = ' + T(lam) + '$ and $k = ' + k + '$:', tex: 'P(X = ' + k + ') = e^{-' + T(lam) + '}\\,\\frac{' + (k === 0 ? '1' : powT(lam, k)) + '}{' + k + '!}' },
             { text: 'The first factor:', tex: 'e^{-' + T(lam) + '} \\approx ' + d6(e) },
@@ -1132,7 +1068,7 @@
           let g2 = 1; for (let j = 0; j < k; j++) g2 *= (n - j) / n;
           const g1 = num(f2), g3 = Math.pow(1 - pf, n), g4 = Math.pow(1 - pf, -k), prod = g1 * g2 * g3 * g4, ok = Math.abs(prod - bin[k]) <= 1e-9 * Math.max(1e-300, bin[k]) + 1e-15;
           out.append(K.card('Why the binomial turns into Poisson',
-            flowSteps([
+            K.steps([
               k > n ? { text: 'The exact binomial chance with your numbers is 0: ' + k + ' heads cannot happen in ' + tosses(n) + '.' }
                 : { text: 'The exact binomial chance with your numbers:', tex: chain('P(X = ' + k + ')', '\\binom{' + n + '}{' + k + '}' + [powT(p, k), powT(q, n - k)].filter(Boolean).join(''), exact ? TX(exact, 6) : '\\approx ' + d6(bin[k])) },
               { text: 'Start from the binomial PMF and write $p = \\lambda / n$:', tex: 'P(X = k) = \\binom{n}{k}\\left(\\frac{\\lambda}{n}\\right)^{k}\\left(1 - \\frac{\\lambda}{n}\\right)^{n-k}' },
@@ -1151,7 +1087,7 @@
           K.table(['tosses $n$', '$p = \\lambda / n$', 'largest gap', '$n \\times$ gap'], ns.map(x => { const g = gap(x); return ['$' + x + '$', '$' + d6(L / x) + '$', '$' + d6(g) + '$', '$' + decT(g * x, 3) + '$']; }), { hi: new Set([ns.indexOf(n)]) })));
         const vb = lam.mul(q), sumPo = po.reduce((a, b) => a + b, 0);
         out.append(K.card('Check: mean and variance',
-          flowSteps([
+          K.steps([
             { text: 'The binomial mean is $np$, the Poisson mean is $\\lambda$; they are equal by the choice $p = \\lambda / n$:', tex: 'np = ' + n + ' \\times ' + T(p) + ' = ' + T(lam) + ' = \\lambda' },
             { text: 'The binomial variance is $np(1-p) = \\lambda(1 - p)$; the Poisson variance is $\\lambda$. They agree when $p$ is small:', tex: '\\begin{aligned} \\text{binomial: } \\lambda(1-p) &= ' + T(lam) + ' \\times ' + T(q) + ' = ' + TX(vb) + ' \\\\ \\text{Poisson: } \\lambda &= ' + T(lam) + ' \\end{aligned}' },
             { text: 'The Poisson chances add up to 1, because $1 + \\lambda + \\frac{\\lambda^2}{2!} + \\dots = e^{\\lambda}$. The bars above already hold', tex: 'P(X \\le ' + K2 + ') \\approx ' + d6(sumPo) },

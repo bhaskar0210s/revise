@@ -10,6 +10,7 @@
      K.layout(el) → { controls, out }                     controls card on top (phone) or left (wide screen)
      K.int / K.prob / K.select / K.seg / K.text / K.check controls (16 px inputs, 44 px targets)
      K.card(title, …) K.answer(label, tex) K.steps([{ text, tex }]) K.table(head, rows, { hi }) K.p(text with $maths$)
+     K.wrap(tex)                                          maths as HTML that wraps on a phone (as in K.answer and K.steps)
      K.bars({ xs, ys, labels, hi, xName, yName }) K.cdf({ xs, ps }) charts (SVG, theme colours)
      K.coin('H'|'T') K.die(v, faces) K.tree(n, p, { hi }) K.grid(rows, cols, cell) small drawings
      K.rng(seed) seeded random numbers for simulations
@@ -88,9 +89,63 @@
     try { return window.katex.renderToString(src, { displayMode: !!display, throwOnError: false, strict: false, macros: { ...MACROS } }); }
     catch (e) { return '<code>' + REV.esc(src) + '</code>'; }
   };
-  /** a display formula that may wrap after "=", "+" or "×" on a narrow phone instead of scrolling sideways
-      (a formula with its own line layout — an environment or \\ — stays a normal display) */
-  const kxWrap = src => /\\begin\{|\\\\/.test(src) ? kx(src, true) : '<span class="lk-wrap">' + kx('\\displaystyle ' + src, false) + '</span>';
+  /* maths a phone can wrap. KaTeX breaks a line only after "=", "+" or "×" (or \allowbreak) at the top level of a formula,
+     so a long chain wraps, but an aligned block, or a display with a matrix in it, could only scroll sideways */
+  const TOK = /\\(?:begin|end)\{[^}]*\}|\\[A-Za-z]+|\\.|[\s\S]/y;
+  const toks = s => { const a = []; for (TOK.lastIndex = 0; TOK.lastIndex < s.length;) a.push(TOK.exec(s)[0]); return a; };
+  const depth = t => (t === '{' || t === '\\left' || t.startsWith('\\begin') ? 1 : t === '}' || t === '\\right' || t.startsWith('\\end') ? -1 : 0);
+  const LEAD = /^(?:\s|~|\\(?:quad|qquad|[,;: ]))+/, BIN = /^(?:[+−-]|\\(?:times|cdot|pm|mp|div)(?![A-Za-z]))/;
+  const REL = /^(?:[=<>]|\\(?:approx|le|leq|ge|geq|ne|neq|equiv|sim|to|Rightarrow|Longrightarrow|longrightarrow|iff|implies)(?![A-Za-z]))/;
+  /** TeX → its lines: each row of a top-level aligned block gets a line of its own (a row that goes on with + or − joins the
+      line before; one that goes on with = is indented), and a line may break after a comma outside brackets */
+  function texLines(src) {
+    const tk = toks(String(src)), out = [];
+    let pre = '', d = 0, i = 0;
+    while (i < tk.length) {
+      let t = tk[i++];
+      if (t !== '\\begin{aligned}' || d) { d += depth(t); pre += t; continue; }
+      if (pre.trim()) out.push(pre.trim());
+      pre = '';
+      const rows = [[]];
+      let cell = '', e = 0;
+      for (; i < tk.length; i++) {
+        t = tk[i];
+        if (!e && t === '\\end{aligned}') { i++; break; }
+        if (!e && t === '\\\\') {                                 // a new row; skip a spacing like \\[4pt]
+          rows[rows.length - 1].push(cell); rows.push([]); cell = '';
+          let k = i + 1;
+          while (k < tk.length && /^\s$/.test(tk[k])) k++;
+          if (tk[k] === '[') { while (k < tk.length && tk[k] !== ']') k++; i = k; }
+          continue;
+        }
+        if (!e && t === '&') { rows[rows.length - 1].push(cell); cell = ''; continue; }
+        e += depth(t);
+        cell += t;
+      }
+      rows[rows.length - 1].push(cell);
+      for (const c of rows) {
+        if (!c.join('').trim()) continue;
+        if (c.length > 2) { for (let k = 0; k < c.length; k += 2) { const pair = (c[k] + ' ' + (c[k + 1] || '')).replace(LEAD, '').trim(); if (pair) out.push(pair); } continue; }
+        const go = c.length === 2 && !c[0].trim() ? c[1].replace(LEAD, '').trim() : null;
+        if (go && BIN.test(go) && out.length) out[out.length - 1] += ' ' + go;
+        else out.push(go && REL.test(go) ? '\\quad ' + go : c.join(' ').trim());
+      }
+      while (i < tk.length && LEAD.test(tk[i])) i++;
+    }
+    if (pre.trim()) out.push(pre.trim());
+    return out.map(line => {
+      let s = '', b = 0, e = 0;
+      for (const t of toks(line)) {
+        if (t === '(' || t === '[') b++; else if (t === ')' || t === ']') b--; else e += depth(t);
+        s += t + (t === ',' && !b && !e ? '\\allowbreak ' : '');
+      }
+      return s;
+    });
+  }
+  /** maths that wraps on a narrow phone instead of scrolling sideways (K.answer and K.steps use it): one line per row, set
+      inline even with a matrix in it, so that it can break between the matrices; a little room above and below each
+      unbreakable piece keeps tall fractions on wrapped lines apart. Only a matrix wider than the phone still scrolls. */
+  const kxWrap = tex => texLines(tex).map(l => '<span class="lk-wrap">' + kx('\\displaystyle ' + l, false).replace(/<span class="base">/g, '<span class="base" style="margin: .15em 0">') + '</span>').join('');
   /** Lab text is trusted code, but it often quotes what came from a link or a text box (error messages, typed lists),
       and anyone can make a link. So the text between the maths keeps the labs' own markup (<b>, <span class>, <code> …)
       and loses anything that could run: script-like elements, on… handlers, javascript: and data: URLs. */
@@ -284,5 +339,5 @@
   /** seeded random numbers in [0, 1) */
   const rng = seed => { let a = seed >>> 0 || 1; return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
 
-  REV.kit = { F, Frac, C, fact, T, TD, kx, rich, state, layout, card, p, answer, steps, table, note, int, prob, select, seg, text, check, button, bars, cdf, coin, die, tree, grid, rng, sv, h };
+  REV.kit = { F, Frac, C, fact, T, TD, kx, wrap: kxWrap, rich, state, layout, card, p, answer, steps, table, note, int, prob, select, seg, text, check, button, bars, cdf, coin, die, tree, grid, rng, sv, h };
 })();

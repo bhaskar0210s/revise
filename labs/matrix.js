@@ -9,70 +9,6 @@
   'use strict';
   const K = REV.kit;
   const { F, T, TD, h } = K;
-
-  /* Maths a phone can wrap. The kit wraps a chain after =, + or × on a narrow phone, but shows an aligned block, or any
-     formula with a matrix, as one display that can only scroll sideways. flow() gives each row of an aligned block a
-     line of its own (a row that goes on with + or − joins the line before; one that goes on with = is indented), sets
-     a formula with a matrix inline so that it can break between the matrices, and lets a list break after a comma
-     outside brackets. flowSteps and flowAnswer are K.steps and K.answer with flow() for the maths. */
-  const { flow, flowSteps, flowAnswer } = (() => {
-    const TOK = /\\(?:begin|end)\{[^}]*\}|\\[A-Za-z]+|\\.|[\s\S]/y;
-    const toks = s => { const a = []; for (TOK.lastIndex = 0; TOK.lastIndex < s.length;) a.push(TOK.exec(s)[0]); return a; };
-    const depth = t => (t === '{' || t === '\\left' || t.startsWith('\\begin') ? 1 : t === '}' || t === '\\right' || t.startsWith('\\end') ? -1 : 0);
-    const LEAD = /^(?:\s|~|\\(?:quad|qquad|[,;: ]))+/, BIN = /^(?:[+−-]|\\(?:times|cdot|pm|mp|div)(?![A-Za-z]))/;
-    const REL = /^(?:[=<>]|\\(?:approx|le|leq|ge|geq|ne|neq|equiv|sim|to|Rightarrow|Longrightarrow|longrightarrow|iff|implies)(?![A-Za-z]))/;
-    function lines(src) {
-      const tk = toks(String(src)), out = [];
-      let pre = '', d = 0, i = 0;
-      while (i < tk.length) {
-        let t = tk[i++];
-        if (t !== '\\begin{aligned}' || d) { d += depth(t); pre += t; continue; }
-        if (pre.trim()) out.push(pre.trim());
-        pre = '';
-        const rows = [[]];
-        let cell = '', e = 0;
-        for (; i < tk.length; i++) {
-          t = tk[i];
-          if (!e && t === '\\end{aligned}') { i++; break; }
-          if (!e && t === '\\\\') {                                 // a new row; skip a spacing like \\[4pt]
-            rows[rows.length - 1].push(cell); rows.push([]); cell = '';
-            let k = i + 1;
-            while (k < tk.length && /^\s$/.test(tk[k])) k++;
-            if (tk[k] === '[') { while (k < tk.length && tk[k] !== ']') k++; i = k; }
-            continue;
-          }
-          if (!e && t === '&') { rows[rows.length - 1].push(cell); cell = ''; continue; }
-          e += depth(t);
-          cell += t;
-        }
-        rows[rows.length - 1].push(cell);
-        for (const c of rows) {
-          if (!c.join('').trim()) continue;
-          if (c.length > 2) { for (let k = 0; k < c.length; k += 2) { const p = (c[k] + ' ' + (c[k + 1] || '')).replace(LEAD, '').trim(); if (p) out.push(p); } continue; }
-          const go = c.length === 2 && !c[0].trim() ? c[1].replace(LEAD, '').trim() : null;
-          if (go && BIN.test(go) && out.length) out[out.length - 1] += ' ' + go;
-          else out.push(go && REL.test(go) ? '\\quad ' + go : c.join(' ').trim());
-        }
-        while (i < tk.length && LEAD.test(tk[i])) i++;
-      }
-      if (pre.trim()) out.push(pre.trim());
-      return out.map(line => {
-        let s = '', b = 0, e = 0;
-        for (const t of toks(line)) {
-          if (t === '(' || t === '[') b++; else if (t === ')' || t === ']') b--; else e += depth(t);
-          s += t + (t === ',' && !b && !e ? '\\allowbreak ' : '');
-        }
-        return s;
-      });
-    }
-    // a little room above and below each unbreakable piece, so that tall fractions on wrapped lines do not touch
-    const flow = tex => lines(tex).map(l => '<span class="lk-wrap">' + K.kx('\\displaystyle ' + l, false).replace(/<span class="base">/g, '<span class="base" style="margin: .15em 0">') + '</span>').join('');
-    return {
-      flow,
-      flowSteps: list => h('ol', { class: 'lk-steps' }, list.map(x => h('li', {}, x.text ? h('div', { class: 'lk-step-t', html: K.rich(x.text) }) : null, x.tex ? h('div', { class: 'lk-step-m', html: flow(x.tex) }) : null))),
-      flowAnswer: (label, tex, note) => h('div', { class: 'lk-answer' }, h('div', { class: 'lk-answer-k', html: K.rich(label) }), h('div', { class: 'lk-answer-v', html: flow(tex) }), note ? h('div', { class: 'lk-answer-n', html: K.rich(note) }) : null),
-    };
-  })();
   const Z = F(0), ONE = F(1);
   const MAXLEN = 14;
 
@@ -621,7 +557,7 @@
   /** steps of a row reduction, or a sentence when nothing had to be done */
   /** the steps of a row reduction as one numbered list: an optional first step, every operation (or a sentence when
       nothing had to be done), an optional last step */
-  const opSteps = (ops, aug, none, last, first) => flowSteps([first, ...(ops.length ? ops.map(o => opStep(o, aug)) : [{ text: none }]), last].filter(Boolean));
+  const opSteps = (ops, aug, none, last, first) => K.steps([first, ...(ops.length ? ops.map(o => opStep(o, aug)) : [{ text: none }]), last].filter(Boolean));
   /** the solution of Ax = 0 from the reduced form: dependent and free variables, the basis vectors */
   function nullBasis(Rr, piv, n) {
     const names = xs(n), aug = Rr.map(r => [...r, Z]);
@@ -684,8 +620,8 @@
         if (v.length !== n) return out.append(K.note('$u$ and $v$ need the same number of entries.', 'warn'));
         if (s.v.op === 'sum') {
           const w = vadd(u, v);
-          out.append(flowAnswer('$u + v$', 'u + v = ' + vAns(w)),
-            K.card('Add entry by entry', flowSteps([
+          out.append(K.answer('$u + v$', 'u + v = ' + vAns(w)),
+            K.card('Add entry by entry', K.steps([
               { text: 'Two vectors with the same number of entries are added <b>entry by entry</b>: first entry plus first entry, second plus second, and so on.', tex: 'u + v = (u_1 + v_1,\\ \\dots,\\ u_{' + n + '} + v_{' + n + '})' },
               { text: 'With your numbers:', tex: 'u + v = ' + tup(u) + ' + ' + tup(v) + ' = (' + u.map((a, i) => tf(a) + ' + ' + (v[i].cmp(0) < 0 ? '(' + tf(v[i]) + ')' : tf(v[i]))).join(',\\ ') + ') = ' + tup(w) },
               { text: 'Check: take $v$ away again and you are back at $u$.', tex: '(u + v) - v = ' + tup(w) + ' - ' + tup(v) + ' = ' + tup(vsub(w, v)) + ' = u\\ \\checkmark' },
@@ -701,13 +637,13 @@
             { text: 'With your numbers:', tex: P(c) + tup(u) + ' = (' + u.map(a => P(c) + '\\cdot ' + P(a)).join(',\\ ') + ') = ' + tup(w) },
           ];
           if (!c.isZero()) st.push({ text: 'Check: multiplying by $1/c$ undoes it.', tex: '\\tfrac{1}{c}(c\\,u) = ' + coefTex(ONE.div(c)) + tup(w) + ' = ' + tup(vsc(ONE.div(c), w)) + ' = u\\ \\checkmark' });
-          out.append(flowAnswer('$c\\,u$', P(c) + 'u = ' + vAns(w)), K.card('Multiply every entry', flowSteps(st)));
+          out.append(K.answer('$c\\,u$', P(c) + 'u = ' + vAns(w)), K.card('Multiply every entry', K.steps(st)));
           if (n === 2) out.append(K.card('Picture', K.p(c.cmp(0) < 0 ? 'A negative $c$ turns the arrow around and stretches it by $|c|$.' : 'The arrow keeps its direction and is stretched by $c$.'),
             plot({ label: 'u and c u', vecs: [{ to: num2(w), c: 4, label: 'cu' }, { to: num2(u), c: 1, label: 'u' }] })));
         } else {
           const prods = u.map((a, i) => a.mul(v[i])), d = dot(u, v);
-          out.append(flowAnswer('$u\\cdot v$', 'u\\cdot v = ' + TD(d)),
-            K.card('Multiply matching entries, then add', flowSteps([
+          out.append(K.answer('$u\\cdot v$', 'u\\cdot v = ' + TD(d)),
+            K.card('Multiply matching entries, then add', K.steps([
               { text: 'The <b>dot product</b> multiplies the first entries, the second entries, and so on, then adds the products. The answer is a number, not a vector.', tex: 'u\\cdot v = u_1v_1 + \\dots + u_{' + n + '}v_{' + n + '}' },
               { text: 'Multiply matching entries:', tex: prods.map((p, i) => P(u[i]) + '\\cdot ' + P(v[i]) + ' = ' + T(p)).join(',\\qquad ') },
               { text: 'Add the products:', tex: 'u\\cdot v = ' + sumTex(prods) + ' = ' + T(d) },
@@ -725,10 +661,10 @@
         let B = null;
         if (op === 'sum' || op === 'product') { const RB = readMat(s.v.B, '$B$'); if (RB.err) return out.append(K.note(RB.err, 'warn')); B = RB.M; }
         if (op === 'sum') {
-          if (B.length !== m || B[0].length !== n) { out.append(flowAnswer('$A + B$', '\\text{not defined}'), K.note('Matrices are added entry by entry, so they must have the same size. Here $A$ is $' + size(A) + '$ and $B$ is $' + size(B) + '$.', 'warn')); return; }
+          if (B.length !== m || B[0].length !== n) { out.append(K.answer('$A + B$', '\\text{not defined}'), K.note('Matrices are added entry by entry, so they must have the same size. Here $A$ is $' + size(A) + '$ and $B$ is $' + size(B) + '$.', 'warn')); return; }
           const S = madd(A, B);
-          out.append(flowAnswer('$A + B$', ansEq('A + B', S)),
-            K.card('Add entry by entry', flowSteps([
+          out.append(K.answer('$A + B$', ansEq('A + B', S)),
+            K.card('Add entry by entry', K.steps([
               { text: '$A$ and $B$ are both $' + size(A) + '$, so they can be added. Each entry of $A + B$ is the matching entry of $A$ plus the matching entry of $B$:', tex: '(A + B)_{ij} = a_{ij} + b_{ij}' },
               { text: 'Write every sum, then work it out:', tex: 'A + B = ' + mtex(A.map((r, i) => r.map((a, j) => [a, B[i][j]])), { fmt: ([a, b]) => T(a) + ' + ' + P(b) }) + ' = ' + mtex(S) },
               { text: 'Check: subtracting $B$ again gives back $A$.', tex: '(A + B) - B = ' + mtex(msub(S, B)) + ' = A\\ \\checkmark' },
@@ -741,10 +677,10 @@
             { text: 'With your numbers:', tex: P(c) + mtex(A) + ' = ' + mtex(A, { fmt: a => P(c) + '\\cdot ' + P(a) }) + ' = ' + mtex(S) },
           ];
           if (!c.isZero()) st.push({ text: 'Check: multiplying by $1/c$ undoes it.', tex: coefTex(ONE.div(c)) + '(cA) = ' + mtex(mscale(ONE.div(c), S)) + ' = A\\ \\checkmark' });
-          out.append(flowAnswer('$c\\,A$', ansEq(P(c) + 'A', S)), K.card('Multiply every entry', flowSteps(st)));
+          out.append(K.answer('$c\\,A$', ansEq(P(c) + 'A', S)), K.card('Multiply every entry', K.steps(st)));
         } else if (op === 'product') {
           const p = B.length, q = B[0].length;
-          if (n !== p) { out.append(flowAnswer('$AB$', '\\text{not defined}'), K.note('$AB$ needs as many columns in $A$ as rows in $B$. Here $A$ is $' + size(A) + '$ (' + n + ' columns) and $B$ is $' + size(B) + '$ (' + p + ' rows).' + (q === m ? ' But $BA$ is defined: swap the two matrices.' : ''), 'warn')); return; }
+          if (n !== p) { out.append(K.answer('$AB$', '\\text{not defined}'), K.note('$AB$ needs as many columns in $A$ as rows in $B$. Here $A$ is $' + size(A) + '$ (' + n + ' columns) and $B$ is $' + size(B) + '$ (' + p + ' rows).' + (q === m ? ' But $BA$ is defined: swap the two matrices.' : ''), 'warn')); return; }
           const C = mul(A, B);
           let [ei, ej] = String(s.v.e).split(',').map(x => parseInt(x, 10) - 1);
           ei = Math.min(Math.max(ei || 0, 0), m - 1); ej = Math.min(Math.max(ej || 0, 0), q - 1);
@@ -753,22 +689,22 @@
             const parts = dedupe([A[i].map((a, k) => P(a) + '\\cdot ' + P(B[k][j])).join(' + '), sumTex(pr), T(C[i][j])]);
             return '(AB)_{' + (i + 1) + (j + 1) + '} ' + (al ? '&' : '') + '= ' + parts.join(' = ');
           };
-          out.append(flowAnswer('$AB$', ansEq('AB', C)));
+          out.append(K.answer('$AB$', ansEq('AB', C)));
           const chips = h('div', { class: 'mx-try' }, C.flatMap((r, i) => r.map((_, j) => h('button', { type: 'button', class: 'lk-chip' + (i === ei && j === ej ? ' on' : ''), text: '(' + (i + 1) + ', ' + (j + 1) + ')', 'aria-pressed': i === ei && j === ej ? 'true' : 'false', onclick: () => s.set({ e: (i + 1) + ',' + (j + 1) }) }))));
-          out.append(K.card('Picture: one entry of $AB$', K.p('Tap an entry of $AB$ to see where it comes from:'), chips, flowSteps([
+          out.append(K.card('Picture: one entry of $AB$', K.p('Tap an entry of $AB$ to see where it comes from:'), chips, K.steps([
             { text: 'Entry $(' + (ei + 1) + ', ' + (ej + 1) + ')$ uses row $' + (ei + 1) + '$ of $A$ (blue) and column $' + (ej + 1) + '$ of $B$ (orange): multiply matching entries and add.', tex: mtex(A, { rows: new Map([[ei, 'x']]) }) + mtex(B, { cols: new Map([[ej, 'y']]) }) + ' = ' + mtex(C, { cells: new Map([[ei + ',' + ej, 'pick']]) }) },
             { tex: entry(ei, ej, false) },
           ])));
-          out.append(K.card('Every entry: a row of $A$ times a column of $B$', flowSteps([
+          out.append(K.card('Every entry: a row of $A$ times a column of $B$', K.steps([
             { text: '$A$ is $' + size(A) + '$ and $B$ is $' + size(B) + '$. The inner sizes match ($' + n + ' = ' + p + '$), so $AB$ is defined and has the outer size $' + m + '\\times ' + q + '$. Entry $(i, j)$ is row $i$ of $A$ times column $j$ of $B$:', tex: '(AB)_{ij} = \\sum_{k=1}^{' + n + '} a_{ik}\\,b_{kj}' },
             ...C.map((r, i) => ({ text: 'Row $' + (i + 1) + '$ of $AB$: row $' + (i + 1) + '$ of $A$ times each column of $B$.', tex: '\\begin{aligned}' + r.map((_, j) => entry(i, j, true)).join(' \\\\ ') + '\\end{aligned}' })),
             { text: 'Check: the transpose of a product is the product of the transposes in the other order, so $B^TA^T$ must be the transpose of $AB$.', tex: 'B^TA^T = ' + mtex(tr(B)) + mtex(tr(A)) + ' = ' + mtex(mul(tr(B), tr(A))) + ' = (AB)^T\\ \\checkmark' },
           ])));
-          if (m === q && n === p && m === n && !eqM(C, mul(B, A))) out.append(K.card('Order matters', flowSteps([{ text: 'Both $A$ and $B$ are square, so $BA$ is defined too, but it is a different matrix: in general $AB \\neq BA$.', tex: 'BA = ' + mtex(mul(B, A)) + ' \\neq AB' }])));
+          if (m === q && n === p && m === n && !eqM(C, mul(B, A))) out.append(K.card('Order matters', K.steps([{ text: 'Both $A$ and $B$ are square, so $BA$ is defined too, but it is a different matrix: in general $AB \\neq BA$.', tex: 'BA = ' + mtex(mul(B, A)) + ' \\neq AB' }])));
         } else {
           const At = tr(A), rows = new Map(A.map((_, i) => [i, RAINBOW[i % 4]])), cols = new Map(A.map((_, i) => [i, RAINBOW[i % 4]]));
-          out.append(flowAnswer('$A^T$', ansEq('A^T', At)),
-            K.card('Rows become columns', flowSteps([
+          out.append(K.answer('$A^T$', ansEq('A^T', At)),
+            K.card('Rows become columns', K.steps([
               { text: 'The <b>transpose</b> flips $A$ over its main diagonal: row $i$ of $A$ becomes column $i$ of $A^T$, so an $' + m + '\\times ' + n + '$ matrix becomes $' + n + '\\times ' + m + '$.', tex: '(A^T)_{ij} = a_{ji}' },
               { text: 'Each row of $A$ in its own colour, and the same colours in the columns of $A^T$:', tex: 'A = ' + mtex(A, { rows }) + '\\quad\\Longrightarrow\\quad A^T = ' + mtex(At, { cols }) },
               { text: 'Check: transposing twice gives back $A$.', tex: '(A^T)^T = ' + mtex(tr(At)) + ' = A\\ \\checkmark' },
@@ -813,10 +749,10 @@
         const A = RA.M, n = A.length, k = Math.min(Math.max(1, s.v.k | 0), n) - 1, along = s.v.along === 'col' ? 'col' : 'row';
         const d = det(A);
         const src = fromNote(TRY, s.v); if (src) out.append(src);
-        out.append(flowAnswer('$\\det A$', '\\det A = ' + TD(d), d.isZero() ? 'The determinant is $0$, so $A$ has no inverse.' : 'The determinant is not $0$, so $A$ has an inverse.'));
-        if (n === 1) { out.append(K.card('A $1\\times 1$ matrix', flowSteps([{ text: 'The determinant of a $1\\times 1$ matrix $[a]$ is the number $a$ itself.', tex: '\\det' + mtex(A) + ' = ' + T(d) }]))); return; }
+        out.append(K.answer('$\\det A$', '\\det A = ' + TD(d), d.isZero() ? 'The determinant is $0$, so $A$ has no inverse.' : 'The determinant is not $0$, so $A$ has an inverse.'));
+        if (n === 1) { out.append(K.card('A $1\\times 1$ matrix', K.steps([{ text: 'The determinant of a $1\\times 1$ matrix $[a]$ is the number $a$ itself.', tex: '\\det' + mtex(A) + ' = ' + T(d) }]))); return; }
         const ex = expansionSteps(A, along, k, 'A');
-        out.append(K.card('Cofactor expansion along ' + (along === 'row' ? 'row' : 'column') + ' $' + (k + 1) + '$', flowSteps(ex.steps)));
+        out.append(K.card('Cofactor expansion along ' + (along === 'row' ? 'row' : 'column') + ' $' + (k + 1) + '$', K.steps(ex.steps)));
         // every row and column
         const rowsT = [];
         for (const al of ['row', 'col']) for (let q = 0; q < n; q++) { const e = expansion(A, al, q); rowsT.push([(al === 'row' ? 'Row ' : 'Column ') + '$' + (q + 1) + '$', '$' + sumTex(e.terms.map(t => t.term)) + ' = ' + T(e.value) + '$']); }
@@ -842,7 +778,7 @@
         for (let p = 0; p < n && !same; p++) for (let q = p + 1; q < n && !same; q++) if (A[p].every((x, j) => x.eq(A[q][j]))) same = [p, q];
         if (same) sc.push({ text: 'Rows $' + (same[0] + 1) + '$ and $' + (same[1] + 1) + '$ are equal. Swapping them changes nothing, yet a swap must flip the sign, so $\\det A = -\\det A$, which forces $\\det A = 0$.' });
         if (!sc.length) sc.push({ text: 'No shortcut fits a general $4\\times 4$ matrix: expand along the row or column with the most zeros, or use row operations (below) to make zeros first.' });
-        out.append(K.card('Shortcuts', flowSteps(sc)));
+        out.append(K.card('Shortcuts', K.steps(sc)));
         rowOpCard(A, d);
       }
       function rowOpCard(A, d) {
@@ -867,11 +803,11 @@
           : op === 'scale' ? ['Multiplying one row by $t$ multiplies the determinant by $t$.', "\\det A' = t\\cdot\\det A = " + P(t) + '\\cdot ' + P(d) + ' = ' + T(expect)]
             : ['Adding a multiple of one row to another row does not change the determinant.', "\\det A' = \\det A = " + T(d)];
         const w = detWork(A2, "A'");
-        card.append(flowSteps([
+        card.append(K.steps([
           { text: 'Apply the operation; the changed row' + (op === 'swap' ? 's are' : ' is') + ' coloured.', tex: opTex(o) + ':\\qquad A = ' + mtex(A) + '\\ \\longrightarrow\\ A\' = ' + mtex(A2, { rows: new Map(op === 'swap' ? [[i, 'pick'], [j, 'pick']] : [[i, 'pick']]) }) },
           { text: 'Work out $\\det A\'$ directly (the steps are below):', tex: "\\det A' = " + T(d2) },
           { text: 'The rule (lectures 1.4 and 2.1): ' + rule[0], tex: rule[1] + (d2.eq(expect) ? '\\ \\checkmark' : '') },
-        ]), more("How $\\det A'$ is worked out", flowSteps(w.steps)));
+        ]), more("How $\\det A'$ is worked out", K.steps(w.steps)));
       }
       ui();
       draw();
@@ -907,10 +843,10 @@
         const src = fromNote(TRY, s.v); if (src) out.append(src);
         const eqs = '\\begin{aligned}' + A.map((r, i) => lin(r, names) + ' &= ' + T(b[i])).join(' \\\\ ') + '\\end{aligned}';
         let g = null;
-        if (sol.kind === 'none') out.append(flowAnswer('No solution', '\\text{row } ' + (sol.bad + 1) + ':\\quad 0 = ' + T(red.ref[sol.bad][n]), 'After elimination one equation says $0 = ' + T(red.ref[sol.bad][n]) + '$, which is impossible.'));
-        else if (sol.kind === 'unique') out.append(flowAnswer('One solution', '(' + names.join(',\\ ') + ') = ' + vAns(sol.val.map(e => e.c))));
-        else { g = general(sol, n); out.append(flowAnswer('Infinitely many solutions: ' + sol.free.length + ' free variable' + (sol.free.length > 1 ? 's' : ''), 'x = ' + g.tex, 'One solution for every value of ' + and(sol.pn.map(p => '$' + p + '$')) + '.')); }
-        out.append(K.card('The system as a matrix', flowSteps([
+        if (sol.kind === 'none') out.append(K.answer('No solution', '\\text{row } ' + (sol.bad + 1) + ':\\quad 0 = ' + T(red.ref[sol.bad][n]), 'After elimination one equation says $0 = ' + T(red.ref[sol.bad][n]) + '$, which is impossible.'));
+        else if (sol.kind === 'unique') out.append(K.answer('One solution', '(' + names.join(',\\ ') + ') = ' + vAns(sol.val.map(e => e.c))));
+        else { g = general(sol, n); out.append(K.answer('Infinitely many solutions: ' + sol.free.length + ' free variable' + (sol.free.length > 1 ? 's' : ''), 'x = ' + g.tex, 'One solution for every value of ' + and(sol.pn.map(p => '$' + p + '$')) + '.')); }
+        out.append(K.card('The system as a matrix', K.steps([
           { text: 'Your equations:', tex: eqs },
           { text: 'Write the coefficients as $A$ and the right-hand sides as $b$, side by side with a bar between them: the <b>augmented matrix</b>. Each row is one equation.', tex: '[A\\mid b] = ' + mtex(M, { aug: 1 }) },
         ])));
@@ -924,7 +860,7 @@
           if (sol.kind === 'unique') read.push({ text: 'Every unknown has a leading $1$ and no row says $0 = $ (non-zero), so there is exactly <b>one solution</b>:', tex: '(' + names.join(',\\ ') + ') = ' + tup(sol.val.map(e => e.c)) });
           else read.push({ text: 'Some unknowns are free, so there are <b>infinitely many solutions</b>. Collect them as one vector, split into a fixed part and a part for each free variable:', tex: 'x = ' + g.tex });
         }
-        out.append(K.card(sol.kind === 'none' ? 'Read the answer' : 'Back substitution: from the last row up', flowSteps(read)));
+        out.append(K.card(sol.kind === 'none' ? 'Read the answer' : 'Back substitution: from the last row up', K.steps(read)));
         out.append(K.card('The three kinds of answer', K.p('After elimination: a row $0 = c$ with $c \\neq 0$ means <b>no solution</b>. Otherwise, if every unknown has a leading $1$ there is <b>one solution</b>; if some unknown has none, it is free and there are <b>infinitely many</b>.')));
         // check
         if (sol.kind !== 'none') {
@@ -939,7 +875,7 @@
             chk.push({ text: 'The fixed part solves the system (all free variables $0$):', tex: 'A' + vcol(g.p) + ' = ' + vcol(mul(A, g.p.map(x => [x])).map(r => r[0])) + ' = b\\ \\checkmark' });
             g.dirs.forEach((d, q) => chk.push({ text: 'The part for $' + sol.pn[q] + '$ gives $0$, so any multiple of it can be added:', tex: 'A' + vcol(d) + ' = ' + vcol(mul(A, d.map(x => [x])).map(r => r[0])) + '\\ \\checkmark' }));
           }
-          out.append(K.card('Check', flowSteps(chk)));
+          out.append(K.card('Check', K.steps(chk)));
         }
         if (n === 2) {
           const lines = A.map((r, i) => ({ a: fnum(r[0]), b: fnum(r[1]), c: fnum(b[i]), k: (i % 4) + 1, label: 'eq ' + (i + 1) })).filter(l => l.a || l.b);
@@ -975,11 +911,11 @@
         if (RA.err) return out.append(K.note(RA.err, 'warn'));
         const A = RA.M, n = A[0].length, red = reduce(A, n, true), box = boxOf(red.piv);
         const src = fromNote(TRY, s.v); if (src) out.append(src);
-        out.append(flowAnswer('Row echelon form and reduced row echelon form (leading $1$s boxed)', '\\begin{aligned}\\text{REF} &= ' + mtex(red.ref, { box }) + ' \\\\[4pt] \\text{RREF} &= ' + mtex(red.rref, { box }) + '\\end{aligned}', 'Number of leading $1$s: $' + red.piv.length + '$ (the rank of $A$).'));
+        out.append(K.answer('Row echelon form and reduced row echelon form (leading $1$s boxed)', '\\begin{aligned}\\text{REF} &= ' + mtex(red.ref, { box }) + ' \\\\[4pt] \\text{RREF} &= ' + mtex(red.rref, { box }) + '\\end{aligned}', 'Number of leading $1$s: $' + red.piv.length + '$ (the rank of $A$).'));
         const rA = echelonRules(A), rRef = echelonRules(red.ref), rR = echelonRules(red.rref);
         const isRef = rA.slice(0, 3).every(x => x.ok), isRref = isRef && rA[3].ok;
         out.append(K.card('Is your matrix in echelon form?', K.p('Lecture 2.4: a matrix is in <b>row echelon form</b> when rules 1–3 hold, and in <b>reduced</b> row echelon form when rule 4 holds as well.'),
-          flowSteps(rA.map(x => ({ text: x.name }))),
+          K.steps(rA.map(x => ({ text: x.name }))),
           K.table(['', 'Your $A$', 'REF', 'RREF'], rA.map((x, q) => ['Rule ' + (q + 1), mark(x.ok), mark(rRef[q].ok), mark(rR[q].ok)]), { rowHead: true }),
           K.p(isRref ? 'Your matrix is already in reduced row echelon form.' : isRef ? 'Your matrix is in row echelon form but not reduced: ' + rA[3].why : 'Your matrix is not in row echelon form: ' + rA.slice(0, 3).filter(x => !x.ok).map(x => x.why).join(' '))));
         out.append(K.card('Forward phase: a leading $1$ in each row, zeros below it', K.p('Take the leftmost column that is not all zeros (in the rows still to do), bring a non-zero entry to the top by a swap if needed, divide to make it $1$, and clear every entry below it. Then repeat on the rows below.'),
@@ -987,7 +923,7 @@
         out.append(K.card('Backward phase: zeros above each leading $1$', K.p('Start with the rightmost leading $1$ and clear every entry above it, then move one leading $1$ to the left. The columns already cleared are not disturbed.'),
           opSteps(red.up, 0, 'Nothing to do: every leading $1$ already has zeros above it.', { text: 'Rule 4 holds as well: this is the <b>reduced row echelon form</b>. It is the same whatever row operations you use.', tex: mtex(red.rref, { box }) })));
         const pc = red.piv.map(([, c]) => c), other = range(0, n - 1).filter(j => !pc.includes(j));
-        out.append(K.card('What the leading $1$s tell you', flowSteps([
+        out.append(K.card('What the leading $1$s tell you', K.steps([
           { text: 'There ' + (red.piv.length === 1 ? 'is $1$ leading $1$' : 'are $' + red.piv.length + '$ leading $1$s') + ', so the rank of $A$ is $' + red.piv.length + '$.', tex: '\\rank A = ' + red.piv.length },
           { text: pc.length ? 'Columns ' + and(pc.map(j => '$' + (j + 1) + '$')) + ' hold leading $1$s' + (other.length ? '; columns ' + and(other.map(j => '$' + (j + 1) + '$')) + ' do not' : '') + '. For $Ax = 0$ the unknowns of the columns without a leading $1$ are free.' : 'There are no leading $1$s: $A$ is the zero matrix.' },
         ]), K.p('See ' + link('null-space', { A: s.v.A }, 'Null space') + ' and ' + link('basis', { A: s.v.A }, 'Basis, rank and dimension') + ' for what to do with them.')));
@@ -1025,7 +961,7 @@
       function draw() { out.innerHTML = ''; guard(out, body); }
       function check(A, inv) {
         const I = mul(A, inv);
-        return K.card('Check: $AA^{-1} = I$', flowSteps([{ text: 'Multiply $A$ by the inverse (each entry is a row of $A$ times a column of $A^{-1}$). The identity matrix comes out:', tex: mtex(A) + mtex(inv) + ' = ' + mtex(I) + (eqM(I, ident(A.length)) ? ' = I\\ \\checkmark' : '') }]));
+        return K.card('Check: $AA^{-1} = I$', K.steps([{ text: 'Multiply $A$ by the inverse (each entry is a row of $A$ times a column of $A^{-1}$). The identity matrix comes out:', tex: mtex(A) + mtex(inv) + ' = ' + mtex(I) + (eqM(I, ident(A.length)) ? ' = I\\ \\checkmark' : '') }]));
       }
       function body() {
         const RA = readMat(s.v.A, '$A$', { square: true });
@@ -1035,14 +971,14 @@
         if (how === 'adj') {
           const dw = detWork(A, 'A');
           if (d.isZero()) {
-            out.append(flowAnswer('No inverse', '\\det A = 0'), K.card('The determinant', flowSteps(dw.steps)),
+            out.append(K.answer('No inverse', '\\det A = 0'), K.card('The determinant', K.steps(dw.steps)),
               K.note('$\\det A = 0$, so $A$ has no inverse: the formula $A^{-1} = \\frac{1}{\\det A}\\adj A$ would divide by $0$, and some non-zero $x$ has $Ax = 0$ (see ' + link('null-space', { A: s.v.A }, 'Null space') + ').', 'warn'));
             return;
           }
           const inv = n === 1 ? [[ONE.div(A[0][0])]] : mscale(ONE.div(d), tr(A.map((r, i) => r.map((_, j) => det(minorOf(A, i, j)).mul((i + j) % 2 ? -1 : 1)))));
-          out.append(flowAnswer('$A^{-1}$', ansEq('A^{-1}', inv)));
-          out.append(K.card('1. The determinant', flowSteps(dw.steps), K.p('$\\det A = ' + T(d) + ' \\neq 0$, so the inverse exists.')));
-          if (n === 1) { out.append(K.card('2. The inverse of a $1\\times 1$ matrix', flowSteps([{ text: 'For $[a]$ with $a \\neq 0$ the inverse is $[1/a]$:', tex: 'A^{-1} = ' + mtex(inv) }])), check(A, inv)); return; }
+          out.append(K.answer('$A^{-1}$', ansEq('A^{-1}', inv)));
+          out.append(K.card('1. The determinant', K.steps(dw.steps), K.p('$\\det A = ' + T(d) + ' \\neq 0$, so the inverse exists.')));
+          if (n === 1) { out.append(K.card('2. The inverse of a $1\\times 1$ matrix', K.steps([{ text: 'For $[a]$ with $a \\neq 0$ the inverse is $[1/a]$:', tex: 'A^{-1} = ' + mtex(inv) }])), check(A, inv)); return; }
           const C = A.map((r, i) => r.map((_, j) => det(minorOf(A, i, j)).mul((i + j) % 2 ? -1 : 1)));
           const cst = A.map((r, i) => ({
             text: 'Row $' + (i + 1) + '$ of cofactors: for each column $j$, delete row $' + (i + 1) + '$ and column $j$, take the determinant of what is left (the minor $M_{' + (i + 1) + 'j}$) and attach the sign $(-1)^{' + (i + 1) + '+j}$.',
@@ -1052,8 +988,8 @@
               return 'M_{' + ij + '} &= \\det' + mtex(mn) + ' \\\\ &= ' + parts.join(mn.length === 3 ? ' \\\\ &= ' : ' = ') + ' \\\\ C_{' + ij + '} &= ' + sg + 'M_{' + ij + '} = ' + sg + '\\cdot ' + P(md) + ' = ' + T(C[i][j]);
             }).join(' \\\\[10pt] ') + '\\end{aligned}',
           }));
-          out.append(K.card('2. Every minor and cofactor', K.p('The <b>cofactor</b> $C_{ij} = (-1)^{i+j}M_{ij}$ is the minor with the checkerboard sign.'), flowSteps(cst)));
-          out.append(K.card('3. Adjugate, then divide by the determinant', flowSteps([
+          out.append(K.card('2. Every minor and cofactor', K.p('The <b>cofactor</b> $C_{ij} = (-1)^{i+j}M_{ij}$ is the minor with the checkerboard sign.'), K.steps(cst)));
+          out.append(K.card('3. Adjugate, then divide by the determinant', K.steps([
             { text: 'Put the cofactors in a matrix $C$:', tex: 'C = ' + mtex(C) },
             { text: 'The <b>adjugate</b> is its transpose: row $i$ of $C$ becomes column $i$.', tex: '\\adj A = C^T = ' + mtex(tr(C)) },
             { text: 'Divide every entry by $\\det A = ' + T(d) + '$ (lecture 2.3: $A^{-1} = \\frac{1}{\\det A}\\adj A$):', tex: 'A^{-1} = ' + coefTex(ONE.div(d)) + mtex(tr(C)) + ' = ' + mtex(inv) },
@@ -1061,7 +997,7 @@
         } else if (how === 'rows') {
           const M = A.map((r, i) => [...r, ...ident(n)[i]]), red = reduce(M, n, true), ok = red.piv.length === n;
           const inv = red.rref.map(r => r.slice(n));
-          out.append(ok ? flowAnswer('$A^{-1}$', ansEq('A^{-1}', inv)) : flowAnswer('No inverse', '\\text{a row of zeros appears on the left}'));
+          out.append(ok ? K.answer('$A^{-1}$', ansEq('A^{-1}', inv)) : K.answer('No inverse', '\\text{a row of zeros appears on the left}'));
           out.append(K.card('Row reduce $[A \\mid I]$', K.p('Write $I$ next to $A$ and row reduce the whole thing. Whatever turns $A$ into $I$ turns $I$ into $A^{-1}$, because each row operation is a multiplication by an invertible matrix.'),
             opSteps(red.ops, n, 'Nothing to do: $A$ is already the identity.',
               ok ? { text: 'The left half is $I$, so the right half is $A^{-1}$:', tex: '[I\\mid A^{-1}] = ' + mtex(red.rref, { aug: n, box: boxOf(red.piv) }) }
@@ -1073,24 +1009,24 @@
           let b; try { b = bc.map(num); } catch (e) { return out.append(K.note('An entry of $b$ is not a number: write 3, -2/3 or 0.5.', 'warn')); }
           const dw = detWork(A, 'A');
           if (d.isZero()) {
-            out.append(flowAnswer('Cramer\'s rule cannot be used', '\\det A = 0'), K.card('The determinant', flowSteps(dw.steps)),
+            out.append(K.answer('Cramer\'s rule cannot be used', '\\det A = 0'), K.card('The determinant', K.steps(dw.steps)),
               K.note('Cramer\'s rule divides by $\\det A$, so it needs $\\det A \\neq 0$. The system has no solution or infinitely many: solve it by elimination in ' + link('system', { A: s.v.A, b: bc.join(',') }, 'Systems: Gaussian elimination') + '.', 'warn'));
             return;
           }
           const Ai = range(0, n - 1).map(i => A.map((r, q) => r.map((x, j) => (j === i ? b[q] : x))));
           const di = Ai.map(det), x = di.map(v => v.div(d)), names = xs(n);
-          out.append(flowAnswer('The solution of $Ax = b$', '(' + names.join(',\\ ') + ') = ' + vAns(x)));
-          out.append(K.card('1. The determinant of $A$', flowSteps(dw.steps), K.p('$\\det A = ' + T(d) + ' \\neq 0$, so Cramer\'s rule applies (lecture 2.2).')));
+          out.append(K.answer('The solution of $Ax = b$', '(' + names.join(',\\ ') + ') = ' + vAns(x)));
+          out.append(K.card('1. The determinant of $A$', K.steps(dw.steps), K.p('$\\det A = ' + T(d) + ' \\neq 0$, so Cramer\'s rule applies (lecture 2.2).')));
           Ai.forEach((Mi, i) => {
             const nm = 'A_{x_{' + (i + 1) + '}}', w = detWork(Mi, nm);
             const st = [{ text: 'Replace column $' + (i + 1) + '$ of $A$ (the coefficients of $' + names[i] + '$) by $b$:', tex: nm + ' = ' + mtex(Mi, { cols: new Map([[i, 'pick']]) }) }];
             if (n <= 3) st.push(...w.steps);
             else st.push({ text: 'Its determinant (the expansion is below):', tex: '\\det ' + nm + ' = ' + T(di[i]) });
             st.push({ text: 'Divide by $\\det A$:', tex: names[i] + ' = \\frac{\\det ' + nm + '}{\\det A} = \\frac{' + T(di[i]) + '}{' + T(d) + '} = ' + TD(x[i]) });
-            out.append(K.card((i + 2) + '. The unknown $' + names[i] + '$', flowSteps(st), n > 3 ? more('How $\\det ' + nm + '$ is worked out', flowSteps(w.steps)) : null));
+            out.append(K.card((i + 2) + '. The unknown $' + names[i] + '$', K.steps(st), n > 3 ? more('How $\\det ' + nm + '$ is worked out', K.steps(w.steps)) : null));
           });
           const Ax = A.map(r => dot(r, x));
-          out.append(K.card('Check: $Ax = b$', flowSteps([{ text: 'Multiply $A$ by the solution; the right-hand sides come out:', tex: mtex(A) + vcol(x) + ' = ' + vcol(Ax) + (Ax.every((v, i) => v.eq(b[i])) ? ' = b\\ \\checkmark' : '') }])));
+          out.append(K.card('Check: $Ax = b$', K.steps([{ text: 'Multiply $A$ by the solution; the right-hand sides come out:', tex: mtex(A) + vcol(x) + ' = ' + vcol(Ax) + (Ax.every((v, i) => v.eq(b[i])) ? ' = b\\ \\checkmark' : '') }])));
         }
       }
       ui();
@@ -1131,8 +1067,8 @@
           const g = ints.reduce((a, x) => bgcd(a, x.n), 0n) || 1n;
           rel = { f, c: ints.map(x => x.div(F(g))) };
         }
-        out.append(flowAnswer(indep ? 'Linearly independent' : 'Linearly dependent', indep ? 'c_1v_1 + \\dots + c_{' + k + '}v_{' + k + '} = 0 \\;\\Rightarrow\\; c_1 = \\dots = c_{' + k + '} = 0' : lin(rel.c, vn) + ' = 0'));
-        out.append(K.card('Set up $c_1v_1 + \\dots + c_kv_k = 0$', flowSteps([
+        out.append(K.answer(indep ? 'Linearly independent' : 'Linearly dependent', indep ? 'c_1v_1 + \\dots + c_{' + k + '}v_{' + k + '} = 0 \\;\\Rightarrow\\; c_1 = \\dots = c_{' + k + '} = 0' : lin(rel.c, vn) + ' = 0'));
+        out.append(K.card('Set up $c_1v_1 + \\dots + c_kv_k = 0$', K.steps([
           { text: 'Ask which numbers $c_1, \\dots, c_{' + k + '}$ make the combination the zero vector:', tex: vn.map((x, i) => 'c_{' + (i + 1) + '}' + vcol(V[i])).join(' + ') + ' = ' + vcol(V[0].map(() => Z)) },
           { text: 'Entry by entry this is a system of ' + n + ' equation' + (n > 1 ? 's' : '') + ' in the unknowns $c_1, \\dots, c_{' + k + '}$. Its matrix $V$ has the vectors as its <b>columns</b>:', tex: '\\begin{aligned}' + M.map(row => lin(row, cn) + ' &= 0').join(' \\\\ ') + '\\end{aligned}\\qquad V = ' + mtex(M, { cols: new Map(range(0, k - 1).map(j => [j, RAINBOW[j % 4]])) }) },
           { text: 'The right-hand sides are all $0$ and stay $0$ under row operations, so row reduce $V$ alone (lecture 5.1 drops the zero column the same way).' },
@@ -1151,7 +1087,7 @@
           const others = range(0, k - 1).filter(i => i !== f && !rel.c[i].isZero());
           st.push({ text: 'Because $c_{' + (f + 1) + '} \\neq 0$, $v_{' + (f + 1) + '}$ is a combination of the others:', tex: 'v_{' + (f + 1) + '} = ' + (others.length ? lin(others.map(i => rel.c[i].neg().div(rel.c[f])), others.map(i => vn[i])) : '0') });
         }
-        out.append(K.card('Read the answer', flowSteps(st)));
+        out.append(K.card('Read the answer', K.steps(st)));
         // span
         const where = r === 0 ? 'only the zero vector' : r === n ? 'all of $\\mathbb{R}^{' + n + '}$' : r === 1 ? 'a line through the origin in $\\mathbb{R}^{' + n + '}$' : r === 2 ? 'a plane through the origin in $\\mathbb{R}^{' + n + '}$' : 'a ' + r + '-dimensional subspace of $\\mathbb{R}^{' + n + '}$';
         out.append(K.card('Span', K.p('The vectors span ' + where + ' (dimension $' + r + '$)' + (r ? '; ' + and(pc.map(j => '$v_{' + (j + 1) + '}$')) + (r === 1 ? ' alone spans' : ' already span') + ' it and ' + (r === 1 ? 'is a basis' : 'form a basis') + ' of the span.' : '.'))));
@@ -1160,8 +1096,8 @@
         if (k > n) qr.push({ text: 'There are $' + k + '$ vectors in $\\mathbb{R}^{' + n + '}$ and $' + k + ' > ' + n + '$: more than $n$ vectors in $\\mathbb{R}^n$ are always dependent (lecture 3.5).' });
         const z = V.findIndex(isZeroV);
         if (z >= 0) qr.push({ text: '$v_{' + (z + 1) + '}$ is the zero vector, and any list containing $0$ is dependent: $1\\cdot 0 = 0$ with a non-zero coefficient.' });
-        if (k === n) { const w = detWork(M, 'V'); qr.push({ text: 'Here $k = n = ' + n + '$, so $V$ is square and its determinant decides it: $\\det V \\neq 0$ exactly when the vectors are independent.', tex: '\\det V = ' + T(w.value) + (w.value.isZero() ? '\\ \\Rightarrow\\ \\text{dependent}' : '\\neq 0\\ \\Rightarrow\\ \\text{independent}') }); out.append(K.card('Quick checks', flowSteps(qr), more('How $\\det V$ is worked out', flowSteps(w.steps)))); }
-        else if (qr.length) out.append(K.card('Quick checks', flowSteps(qr)));
+        if (k === n) { const w = detWork(M, 'V'); qr.push({ text: 'Here $k = n = ' + n + '$, so $V$ is square and its determinant decides it: $\\det V \\neq 0$ exactly when the vectors are independent.', tex: '\\det V = ' + T(w.value) + (w.value.isZero() ? '\\ \\Rightarrow\\ \\text{dependent}' : '\\neq 0\\ \\Rightarrow\\ \\text{independent}') }); out.append(K.card('Quick checks', K.steps(qr), more('How $\\det V$ is worked out', K.steps(w.steps)))); }
+        else if (qr.length) out.append(K.card('Quick checks', K.steps(qr)));
         if (n === 2) out.append(K.card('Picture', K.p(r === 2 ? 'Two directions that are not on one line: together they reach every point of the plane.' : r === 1 ? 'All the arrows lie on one line through the origin.' : 'Only the zero vector.'),
           plot({ label: 'the vectors', vecs: V.map((v, i) => ({ to: num2(v), c: (i % 4) + 1, label: 'v' + '₁₂₃₄₅'[i] })) })));
       }
@@ -1192,16 +1128,16 @@
         const cols = tr(A), colsB = pc.map(j => cols[j]), rowsB = red.rref.slice(0, r);
         const set = vs => (vs.length ? '\\{' + vs.map(v => tup(v)).join(',\\ ') + '\\}' : '\\varnothing');
         const src = fromNote(TRY, s.v); if (src) out.append(src);
-        out.append(flowAnswer('Rank and bases', '\\begin{aligned}\\rank A &= ' + r + ' \\\\ \\text{column space: } &' + set(colsB) + ' \\\\ \\text{row space: } &' + set(rowsB) + '\\end{aligned}'));
+        out.append(K.answer('Rank and bases', '\\begin{aligned}\\rank A &= ' + r + ' \\\\ \\text{column space: } &' + set(colsB) + ' \\\\ \\text{row space: } &' + set(rowsB) + '\\end{aligned}'));
         out.append(K.card('Row reduce $A$', opSteps(red.ops, 0, 'Nothing to do: $A$ is already in reduced row echelon form.', { text: 'The reduced form $R$, leading $1$s (pivots) boxed:', tex: 'R = ' + mtex(red.rref, { box: boxOf(red.piv) }) })));
         const hiC = new Map(pc.map((j, q) => [j, RAINBOW[q % 4]]));
-        out.append(K.card('Column space: the pivot columns of $A$ itself', flowSteps([
+        out.append(K.card('Column space: the pivot columns of $A$ itself', K.steps([
           r ? { text: 'The leading $1$s of $R$ are in column' + (r > 1 ? 's ' : ' ') + and(pc.map(j => '$' + (j + 1) + '$')) + '. Take those columns of the <b>original</b> $A$ (not of $R$):', tex: 'A = ' + mtex(A, { cols: hiC }) + '\\quad\\Longrightarrow\\quad ' + colsB.map(v => vcol(v)).join(',\\ ') }
             : { text: '$A$ is the zero matrix: its column space is just $\\{0\\}$, with the empty basis.' },
           { text: 'Why the original columns: row operations change the columns, but not the relations between them. In $R$ every non-pivot column is a combination of the pivot columns and the pivot columns are independent, so the same holds in $A$ (lecture 4.4).' },
           { text: 'So the column space (a subspace of $\\mathbb{R}^{' + m + '}$) has dimension $' + r + '$.', tex: '\\dim(\\text{column space}) = ' + r },
         ])));
-        out.append(K.card('Row space: the non-zero rows of $R$', flowSteps([
+        out.append(K.card('Row space: the non-zero rows of $R$', K.steps([
           r ? { text: 'Row operations only combine rows, so the rows of $R$ span the same row space as the rows of $A$. The non-zero rows of an echelon form are independent, so they form a basis:', tex: mtex(red.rref, { rows: new Map(range(0, r - 1).map(q => [q, 'pick'])), box: boxOf(red.piv) }) + '\\quad\\Longrightarrow\\quad ' + rowsB.map(v => tup(v)).join(',\\ ') }
             : { text: '$A$ is the zero matrix: its row space is $\\{0\\}$.' },
           { text: 'So the row space (a subspace of $\\mathbb{R}^{' + n + '}$) has dimension $' + r + '$, the same number.', tex: '\\dim(\\text{row space}) = ' + r + ' = \\rank A' },
@@ -1211,7 +1147,7 @@
           const coef = red.piv.map(([row]) => red.rref[row][j]), comb = colsB.reduce((acc, v, q) => vadd(acc, vsc(coef[q], v)), cols[j].map(() => Z));
           return { text: 'Column $' + (j + 1) + '$ of $R$ is $' + tup(red.rref.map(rw => rw[j])) + '$, so column $' + (j + 1) + '$ of $A$ is the same combination of the pivot columns:', tex: vcol(cols[j]) + ' = ' + (r ? coef.map((c, q) => P(c) + vcol(colsB[q])).join(' + ') : '0') + ' = ' + vcol(comb) + (eqM([comb], [cols[j]]) ? '\\ \\checkmark' : '') };
         });
-        out.append(K.card('Check: the other columns are built from the pivot columns', chk.length ? flowSteps(chk) : K.p('Every column has a pivot: the columns of $A$ are independent and form a basis of the column space themselves.'),
+        out.append(K.card('Check: the other columns are built from the pivot columns', chk.length ? K.steps(chk) : K.p('Every column has a pivot: the columns of $A$ are independent and form a basis of the column space themselves.'),
           K.p('Rank $' + r + '$ with $' + n + '$ columns leaves $' + n + ' - ' + r + ' = ' + (n - r) + '$ free unknown' + (n - r === 1 ? '' : 's') + ' for $Ax = 0$: see ' + link('null-space', { A: s.v.A }, 'Null space') + '.')));
       }
       draw();
@@ -1239,23 +1175,23 @@
         const A = RA.M, n = A[0].length, red = reduce(A, n, true), r = red.piv.length, pc = red.piv.map(([, c]) => c);
         const { sol, names, basis, gen } = nullBasis(red.rref, red.piv, n), k = basis.length;
         const src = fromNote(TRY, s.v); if (src) out.append(src);
-        out.append(flowAnswer('Null space of $A$, nullity $' + k + '$', k ? 'N(A) = \\span\\{' + basis.map(v => tup(v)).join(',\\ ') + '\\}' : 'N(A) = \\{0\\}', 'Rank $' + r + '$ + nullity $' + k + '$ = $' + n + '$, the number of columns.'));
+        out.append(K.answer('Null space of $A$, nullity $' + k + '$', k ? 'N(A) = \\span\\{' + basis.map(v => tup(v)).join(',\\ ') + '\\}' : 'N(A) = \\{0\\}', 'Rank $' + r + '$ + nullity $' + k + '$ = $' + n + '$, the number of columns.'));
         out.append(K.card('Row reduce $A$', K.p('$Ax = 0$ has right-hand sides $0$, and they stay $0$ under row operations, so the zero column is left out (lecture 5.1).'), opSteps(red.ops, 0, 'Nothing to do: $A$ is already in reduced row echelon form.', { text: 'The reduced form $R$; $Ax = 0$ and $Rx = 0$ have the same solutions:', tex: 'R = ' + mtex(red.rref, { box: boxOf(red.piv) }) })));
         const fv = range(0, n - 1).filter(j => !pc.includes(j));
-        out.append(K.card('Dependent and independent variables', flowSteps([
+        out.append(K.card('Dependent and independent variables', K.steps([
           { text: 'A column with a leading $1$ gives a <b>dependent</b> variable; every other column gives an <b>independent</b> (free) variable.', tex: '\\text{dependent: } ' + (pc.length ? pc.map(j => names[j]).join(',\\ ') : '\\text{none}') + '\\qquad \\text{independent: } ' + (fv.length ? fv.map(j => names[j]).join(',\\ ') : '\\text{none}') },
           { text: 'The nullity is the number of independent variables.', tex: '\\nullity A = ' + k },
         ])));
         if (!k) { out.append(K.card('Only the zero vector', K.p('Every variable is dependent, so $Rx = 0$ forces $x = 0$: the null space is $\\{0\\}$ and its basis is empty.'))); }
         else {
-          out.append(K.card('Solve $Rx = 0$', flowSteps([...sol.steps, { text: 'All the solutions:', tex: 'x = ' + gen.tex }])));
-          out.append(K.card('A basis: one vector per independent variable', flowSteps(sol.free.map((j, q) => ({
+          out.append(K.card('Solve $Rx = 0$', K.steps([...sol.steps, { text: 'All the solutions:', tex: 'x = ' + gen.tex }])));
+          out.append(K.card('A basis: one vector per independent variable', K.steps(sol.free.map((j, q) => ({
             text: 'Put $' + sol.pn[q] + ' = 1$' + (k > 1 ? ' and the other free values $0$' : '') + ':', tex: 'v_{' + (q + 1) + '} = ' + vcol(basis[q]),
           }))), K.p('Each basis vector has a $1$ where the others have $0$ (in its own free variable), so they are independent, and every solution is $' + sol.pn.map((p, q) => p + 'v_{' + (q + 1) + '}').join(' + ') + '$: they span the null space.')));
         }
         const chk = [{ text: 'Rank–nullity theorem: the rank (dependent variables) plus the nullity (independent variables) is the number of columns.', tex: '\\rank A + \\nullity A = ' + r + ' + ' + k + ' = ' + n + '\\ \\checkmark' }];
         basis.forEach((v, q) => chk.push({ text: 'Each basis vector solves $Ax = 0$:', tex: 'A v_{' + (q + 1) + '} = ' + mtex(A) + vcol(v) + ' = ' + vcol(A.map(row => dot(row, v))) + '\\ \\checkmark' }));
-        out.append(K.card('Check', flowSteps(chk)));
+        out.append(K.card('Check', K.steps(chk)));
       }
       draw();
     },
@@ -1344,7 +1280,7 @@
         const cols = tr(A), imB = pc.map(j => cols[j]);
         const set = vs => (vs.length ? '\\{' + vs.map(v => tup(v)).join(',\\ ') + '\\}' : '\\{0\\}');
         const formula = 'T' + tupNames(names) + ' = (' + A.map(row => lin(row, names)).join(',\\ ') + ')';
-        out.append(flowAnswer('$T:\\mathbb{R}^{' + n + '}\\to\\mathbb{R}^{' + m + '}$', '\\begin{aligned}A &= ' + mtex(A) + ' \\\\ \\ker T &= ' + (basis.length ? '\\span' : '') + set(basis) + ' \\\\ \\Im T &= ' + (r ? '\\span' : '') + set(imB) + '\\end{aligned}'));
+        out.append(K.answer('$T:\\mathbb{R}^{' + n + '}\\to\\mathbb{R}^{' + m + '}$', '\\begin{aligned}A &= ' + mtex(A) + ' \\\\ \\ker T &= ' + (basis.length ? '\\span' : '') + set(basis) + ' \\\\ \\Im T &= ' + (r ? '\\span' : '') + set(imB) + '\\end{aligned}'));
         // the matrix
         const e = j => range(0, n - 1).map(q => (q === j ? ONE : Z));
         const mst = [];
@@ -1364,16 +1300,16 @@
           });
           mst.push({ text: 'Those images are the columns, and $T(x) = Ax$:', tex: 'A = ' + mtex(A) + ',\\qquad ' + formula });
         }
-        out.append(K.card('The matrix of $T$', flowSteps(mst)));
-        out.append(K.card('Kernel: everything $T$ sends to $0$', flowSteps([
+        out.append(K.card('The matrix of $T$', K.steps(mst)));
+        out.append(K.card('Kernel: everything $T$ sends to $0$', K.steps([
           { text: '$\\ker T$ is the set of $x$ with $T(x) = 0$, that is $Ax = 0$: the null space of $A$. Row reduce $A$ (the steps are below):', tex: 'R = ' + mtex(red.rref, { box: boxOf(red.piv) }) },
           ...(basis.length ? [...sol.steps, { text: 'One basis vector per free variable (that one $1$, the others $0$):', tex: '\\ker T = \\span\\{' + basis.map(v => tup(v)).join(',\\ ') + '\\},\\qquad \\dim\\ker T = ' + basis.length }]
             : [{ text: 'Every column has a leading $1$: only $x = 0$ is sent to $0$.', tex: '\\ker T = \\{0\\},\\qquad \\dim\\ker T = 0' }]),
         ]), more('Row reduction steps', opSteps(red.ops, 0, 'Nothing to do: $A$ is already reduced.'))));
-        out.append(K.card('Image: everything $T$ can reach', flowSteps([
+        out.append(K.card('Image: everything $T$ can reach', K.steps([
           { text: '$\\Im T$ is the set of all $T(x) = Ax = x_1(\\text{column } 1) + \\dots$: the column space of $A$. The pivot columns of $A$ form a basis (lecture 6.3).', tex: r ? '\\Im T = \\span\\{' + imB.map(v => tup(v)).join(',\\ ') + '\\},\\qquad \\dim\\Im T = \\rank A = ' + r : '\\Im T = \\{0\\}' },
         ])));
-        out.append(K.card('Check: rank–nullity', flowSteps([
+        out.append(K.card('Check: rank–nullity', K.steps([
           { text: 'The dimensions of the kernel and the image add up to the dimension of the domain $\\mathbb{R}^{' + n + '}$:', tex: '\\dim\\ker T + \\dim\\Im T = ' + basis.length + ' + ' + r + ' = ' + n + '\\ \\checkmark' },
           { text: (basis.length ? '$T$ is <b>not one-to-one</b>: the kernel is more than $\\{0\\}$.' : '$T$ is <b>one-to-one</b>: its kernel is $\\{0\\}$.') + ' ' + (r === m ? '$T$ is <b>onto</b>: the image is all of $\\mathbb{R}^{' + m + '}$.' : '$T$ is <b>not onto</b>: the image has dimension $' + r + ' < ' + m + '$.') },
         ])));
@@ -1423,10 +1359,10 @@
         }
         const proj = vv.isZero() ? u.map(() => Z) : vsc(uv.div(vv), v), perp = vsub(u, proj);
         const degT = deg ? (deg.exact ? '= ' + deg.v + '^\\circ' : '\\approx ' + r4(deg.v) + '^\\circ') : '';
-        out.append(flowAnswer('Dot product, lengths, angle, projection', '\\begin{aligned}u\\cdot v &= ' + T(uv) + ' \\\\ \\|u\\| &= ' + rootTex(uu) + ' \\\\ \\|v\\| &= ' + rootTex(vv) + ' \\\\ ' +
+        out.append(K.answer('Dot product, lengths, angle, projection', '\\begin{aligned}u\\cdot v &= ' + T(uv) + ' \\\\ \\|u\\| &= ' + rootTex(uu) + ' \\\\ \\|v\\| &= ' + rootTex(vv) + ' \\\\ ' +
           (cosS ? '\\cos\\theta &= ' + surdTex(cosS) + ',\\quad \\theta ' + degT : '\\theta &\\ \\text{is not defined (a zero vector)}') + ' \\\\ \\operatorname{proj}_v u &= ' + vAns(proj) + '\\end{aligned}'));
-        out.append(K.card('Dot product', flowSteps([{ text: 'Multiply matching entries and add:', tex: 'u\\cdot v = ' + u.map((a, i) => P(a) + '\\cdot ' + P(v[i])).join(' + ') + ' = ' + sumTex(u.map((a, i) => a.mul(v[i]))) + ' = ' + T(uv) }])));
-        out.append(K.card('Lengths', flowSteps([
+        out.append(K.card('Dot product', K.steps([{ text: 'Multiply matching entries and add:', tex: 'u\\cdot v = ' + u.map((a, i) => P(a) + '\\cdot ' + P(v[i])).join(' + ') + ' = ' + sumTex(u.map((a, i) => a.mul(v[i]))) + ' = ' + T(uv) }])));
+        out.append(K.card('Lengths', K.steps([
           { text: 'The length (norm) of a vector is the square root of its dot product with itself: Pythagoras in $' + n + '$ dimension' + (n > 1 ? 's' : '') + ' (lecture 7.3).', tex: sq(u, 'u') },
           { tex: sq(v, 'v') },
         ])));
@@ -1437,7 +1373,7 @@
           ang.push({ text: deg.exact ? 'This is a value from the table of cosines:' : 'Take the inverse cosine (a calculator gives degrees):', tex: '\\theta = \\cos^{-1}\\left(' + surdTex(cosS) + '\\right) ' + degT });
           ang.push({ text: uv.isZero() ? '$u\\cdot v = 0$: the vectors are <b>orthogonal</b> (perpendicular).' : 'The vectors are not orthogonal: $u\\cdot v = ' + T(uv) + ' \\neq 0$. ' + (uv.cmp(0) > 0 ? 'A positive dot product means $\\theta < 90^\\circ$.' : 'A negative dot product means $\\theta > 90^\\circ$.') });
         } else ang.push({ text: 'One of the vectors is the zero vector: it has no direction, so there is no angle. It is orthogonal to every vector, since its dot product with anything is $0$.' });
-        out.append(K.card('Angle and orthogonality', flowSteps(ang)));
+        out.append(K.card('Angle and orthogonality', K.steps(ang)));
         const pst = [];
         if (vv.isZero()) pst.push({ text: '$v$ is the zero vector, so the projection on it is taken to be $0$ (lecture 8.3).', tex: '\\operatorname{proj}_v u = 0' });
         else {
@@ -1446,7 +1382,7 @@
           pst.push({ text: 'Check with Pythagoras: the two pieces are perpendicular, so their squared lengths add up to $\\|u\\|^2$.', tex: '\\|\\operatorname{proj}_v u\\|^2 + \\|u - \\operatorname{proj}_v u\\|^2 = ' + T(dot(proj, proj)) + ' + ' + T(dot(perp, perp)) + ' = ' + T(dot(proj, proj).add(dot(perp, perp))) + ' = \\|u\\|^2\\ \\checkmark' });
         }
         if (cosS) pst.push({ text: 'Check the Cauchy–Schwarz inequality $|u\\cdot v| \\le \\|u\\|\\,\\|v\\|$, squared to avoid roots:', tex: '(u\\cdot v)^2 = ' + T(uv.mul(uv)) + ' \\le ' + T(uu) + '\\cdot ' + T(vv) + ' = ' + T(uu.mul(vv)) + '\\ \\checkmark' });
-        out.append(K.card('Projection of $u$ on $v$', flowSteps(pst)));
+        out.append(K.card('Projection of $u$ on $v$', K.steps(pst)));
         if (!uu.isZero() && !vv.isZero()) {
           let pu, pv, pp;
           if (n === 2) { pu = num2(u); pv = num2(v); pp = num2(proj); }
@@ -1487,9 +1423,9 @@
         X.forEach((x, i) => {
           const st = [];
           if (!vs.length) {
-            if (isZeroV(x)) { st.push({ text: '$x_{' + (i + 1) + '}$ is the zero vector: it adds no direction, so it is skipped.' }); cards.push(K.card('Vector $x_{' + (i + 1) + '}$', flowSteps(st))); return; }
+            if (isZeroV(x)) { st.push({ text: '$x_{' + (i + 1) + '}$ is the zero vector: it adds no direction, so it is skipped.' }); cards.push(K.card('Vector $x_{' + (i + 1) + '}$', K.steps(st))); return; }
             vs.push({ i, v: x });
-            cards.push(K.card('Step 1: keep the first vector', flowSteps([{ text: 'The first vector keeps its direction:', tex: 'v_1 = x_{' + (i + 1) + '} = ' + tup(x) }])));
+            cards.push(K.card('Step 1: keep the first vector', K.steps([{ text: 'The first vector keeps its direction:', tex: 'v_1 = x_{' + (i + 1) + '} = ' + tup(x) }])));
             return;
           }
           let w = x;
@@ -1504,28 +1440,28 @@
           st.push({ text: 'Subtract the shadows from $x_{' + (i + 1) + '}$:', tex: wt + ' = x_{' + (i + 1) + '}' + terms.map(t => sgn(t) + (t.c.isZero() ? '\\,' : '') + 'v_{' + (t.q + 1) + '}').join('') + ' = ' + tup(x) + terms.map(t => sgn(t) + tup(vs[t.q].v)).join('') + ' = ' + tup(w) });
           if (isZeroV(w)) {
             st.push({ text: 'Nothing is left: $x_{' + (i + 1) + '}$ lies in the span of the earlier vectors (the list is <b>dependent</b>), so it adds no new direction and is skipped.' });
-            cards.push(K.card('Vector $x_{' + (i + 1) + '}$: nothing new', flowSteps(st)));
+            cards.push(K.card('Vector $x_{' + (i + 1) + '}$: nothing new', K.steps(st)));
             return;
           }
           st.push({ text: 'Check: the new vector is perpendicular to every earlier one.', tex: vs.map((p, q) => wt + '\\cdot v_{' + (q + 1) + '} = ' + T(dot(w, p.v))).join(',\\qquad ') + '\\ \\checkmark' });
           vs.push({ i, v: w });
-          cards.push(K.card('Step ' + vs.length + ': make $x_{' + (i + 1) + '}$ perpendicular to the earlier vectors', flowSteps(st)));
+          cards.push(K.card('Step ' + vs.length + ': make $x_{' + (i + 1) + '}$ perpendicular to the earlier vectors', K.steps(st)));
         });
         if (!vs.length) { out.append(K.note('Every vector is the zero vector: there is no direction to keep.', 'warn')); cards.forEach(c => out.append(c)); return; }
         const ws = vs.map(p => { const nn = surd(dot(p.v, p.v)); return { p, nn, w: p.v.map(e => ({ k: e.div(nn.k).div(F(nn.r)), r: nn.r })) }; });
         const wtex = w => '(' + w.map(surdTex).join(',\\ ') + ')';
         const wdec = w => '(' + w.map(e => r4(surdNum(e))).join(',\\ ') + ')';
         const rational = w => w.every(e => e.r === 1n);
-        out.append(flowAnswer('An orthonormal basis of the span (' + vs.length + ' vector' + (vs.length > 1 ? 's' : '') + ')', '\\begin{aligned}' + ws.map((w, q) => 'w_{' + (q + 1) + '} &= ' + wtex(w.w) + (rational(w.w) && !fracIn([w.w.map(e => e.k)]) ? '' : ' \\\\ &\\approx ' + wdec(w.w))).join(' \\\\[4pt] ') + '\\end{aligned}',
+        out.append(K.answer('An orthonormal basis of the span (' + vs.length + ' vector' + (vs.length > 1 ? 's' : '') + ')', '\\begin{aligned}' + ws.map((w, q) => 'w_{' + (q + 1) + '} &= ' + wtex(w.w) + (rational(w.w) && !fracIn([w.w.map(e => e.k)]) ? '' : ' \\\\ &\\approx ' + wdec(w.w))).join(' \\\\[4pt] ') + '\\end{aligned}',
           vs.length < k ? 'Only ' + vs.length + ' of your ' + k + ' vectors add a new direction: the list is dependent.' : 'Your ' + k + ' vectors are independent, so the span has dimension ' + k + '.'));
         out.append(K.card('The idea', K.p('The shadow (projection) of $x$ on $v$ is $\\frac{x\\cdot v}{v\\cdot v}v$ (lecture 8.3). Subtracting the shadows on all earlier vectors leaves a part perpendicular to all of them. The lecture\'s process (lecture 8.4) divides by the lengths as it goes, $v_i = x_i - \\sum_j (x_i\\cdot w_j)\\,w_j$; that gives the same vectors, since $(x\\cdot w)\\,w = \\frac{x\\cdot v}{v\\cdot v}v$ when $w = v/\\|v\\|$.')));
         cards.forEach(c => out.append(c));
-        out.append(K.card('Normalise: divide each $v_i$ by its length', flowSteps(ws.map((w, q) => ({
+        out.append(K.card('Normalise: divide each $v_i$ by its length', K.steps(ws.map((w, q) => ({
           text: 'Length of $v_{' + (q + 1) + '}$, then $w_{' + (q + 1) + '} = v_{' + (q + 1) + '}/\\|v_{' + (q + 1) + '}\\|$:',
           tex: '\\|v_{' + (q + 1) + '}\\|^2 = ' + w.p.v.map(sqT).join(' + ') + ' = ' + T(dot(w.p.v, w.p.v)) + ',\\qquad \\|v_{' + (q + 1) + '}\\| = ' + rootTex(dot(w.p.v, w.p.v)) + ',\\qquad w_{' + (q + 1) + '} = ' + (w.nn.r === 1n ? (w.nn.k.eq(1) ? '' : coefTex(ONE.div(w.nn.k))) : '\\frac{1}{' + surdTex(w.nn) + '}') + tup(w.p.v) + ' = ' + wtex(w.w),
         })))));
         const G = vs.map(a => vs.map(b => dot(a.v, b.v)));
-        out.append(K.card('Check: orthonormal', flowSteps([
+        out.append(K.card('Check: orthonormal', K.steps([
           { text: 'All the dot products $v_i\\cdot v_j$ in a table: zeros off the diagonal mean the $v_i$ are mutually perpendicular; the diagonal holds the squared lengths.', tex: '[\\,v_i\\cdot v_j\\,] = ' + mtex(G, { cells: new Map(G.flatMap((r, i) => r.map((x, j) => [i + ',' + j, i === j ? 'x' : 'good']))) }) },
           { text: 'Dividing by the lengths keeps the zeros and turns the diagonal into $1$s, so $w_i\\cdot w_j = 0$ for $i \\neq j$ and $\\|w_i\\| = 1$:', tex: '[\\,w_i\\cdot w_j\\,] = ' + mtex(ident(vs.length)) + ' = I\\ \\checkmark' },
         ])));

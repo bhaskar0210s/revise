@@ -1951,7 +1951,7 @@
         okChain = okChain2 || okChain;
         const sym = !symBad.length, anti = !antiBad.length, trans = !transBad.length, equiv = refl && sym && trans;
         const hasP = [refl && 'reflexive', sym && 'symmetric', anti && 'antisymmetric', trans && 'transitive'].filter(Boolean), lacks = [!refl && 'reflexive', !sym && 'symmetric', !anti && 'antisymmetric', !trans && 'transitive'].filter(Boolean);
-        out.append(K.answer('Which properties does $R$ have?', hasP.length ? hasP.map(w => '\\text{' + w + '}').join(',\\allowbreak\\ ') : '\\text{none of the four}',
+        out.append(K.answer('Which properties does $R$ have?', hasP.length ? hasP.map(w => '\\text{' + w + '}').join(',\\ ') : '\\text{none of the four}',
           (lacks.length ? 'Not ' + lacks.join(', not ') + '. ' : '') + (equiv ? 'Reflexive, symmetric and transitive: an <b>equivalence relation</b>.' : 'Not an equivalence relation.')));
         notes.forEach(x => out.append(K.note(x)));
         const look = s.v.look, chain = transBad[0] || okChain;
