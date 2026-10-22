@@ -1,6 +1,6 @@
 /* Revise: offline support. The first visit stores every file of the site; after that it opens without a network.
    A new version has a new cache name: its files are fetched once and the old ones deleted. */
-const CACHE = 'revise-ea2d6035e740';
+const CACHE = 'revise-b57fcc299249';
 const FILES = [
  "./",
  "app.css",
@@ -151,7 +151,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  // the private copy's local server answers /api/: never from the cache
+  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin || new URL(req.url).pathname.includes('/api/')) return;
   e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req).then(res => {
     if (res.ok && res.type === 'basic') {
       const copy = res.clone();

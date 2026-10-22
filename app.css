@@ -96,6 +96,15 @@ h2.sec { font-size: 13px; font-weight: 750; letter-spacing: .08em; text-transfor
 .tag.now { background: var(--good-soft); color: var(--good); }
 .tile-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: var(--p); background: var(--good); }
 .tile-wide { background: linear-gradient(180deg, var(--bg-elev), var(--bg-elev)); }
+/* the two terms on the home page: bigger tiles with the term's courses as chips */
+.tile-term { min-height: 150px; }
+.tile-num { font-family: var(--serif); font-size: 26px; font-weight: 600; }
+.tile-list { grid-column: 1 / -1; margin-top: 6px; }
+.tile-list .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 99px; background: var(--bg-sunk); color: var(--ink-2); font-size: 13px; }
+.tile-list .chip .ic { width: 15px; height: 15px; color: var(--accent); }
+.tile-term > .tile-meta:last-of-type { grid-column: 1 / -1; }
+.tiles-more { margin-top: 12px; }
+.pr-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 .install { margin: 22px 2px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); color: var(--ink-2); font-size: .92em; }
 
 /* ---------------------------------------------------------------- course */

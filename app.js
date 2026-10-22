@@ -1,12 +1,14 @@
 /* Revise: the app shell. Hash routes, pages loaded on demand as script files (so the site works from the disk
    as well as from GitHub Pages), progress kept in this browser only.
 
-   #/                       home: the courses, the labs, the formulas
+   #/                       home: the two terms, the labs, the formulas
+   #/term/2                 a term: its courses
    #/stats1                 a course: its weeks and the all-weeks revision
    #/stats1/w03[/section]   a week (or /all), optionally scrolled to a section
    #/labs[/coin[/binomial]][?n=10&p=1/2]   the labs, a lab, a topic with its values
    #/formulas[/stats1]      every formula, or one course's
-   #/search?q=…             search headings and formulas */
+   #/search?q=…             search headings and formulas
+   #/practice…              the private copy only: Seek's questions to attempt, timed (practice.js) */
 (function () {
   'use strict';
   const REV = (window.REV = window.REV || {});
@@ -42,6 +44,7 @@
   /* ------------------------------------------------------------------ data loading */
   let SITE = null;
   REV.site = data => { SITE = data; };
+  REV.siteData = () => SITE;
   const pages = new Map(), waiting = new Map();
   REV.page = p => { const id = p.course + '/' + p.id; pages.set(id, p); (waiting.get(id) || []).forEach(f => f(p)); waiting.delete(id); };
   let FORMULAS = null, SEARCH = null;
@@ -123,6 +126,8 @@
       else if (parts[0] === 'labs') labsRoute(v, parts, query);
       else if (parts[0] === 'formulas') formulas(v, parts[1], query.q || '');
       else if (parts[0] === 'search') search(v, query.q || '');
+      else if (parts[0] === 'term') { const t = (SITE.terms || []).find(x => x.id === parts[1]); if (t) term(v, t); else notFound(v); }
+      else if (parts[0] === 'practice' && SITE.practice) practiceRoute(v, parts, query);
       else {
         const c = SITE.courses.find(x => x.key === parts[0]);
         if (!c) notFound(v);
@@ -139,13 +144,17 @@
   function setBack(parts) {
     const back = $('#back');
     let to = '#/';
+    const c = SITE && SITE.courses.find(x => x.key === parts[0]);
     if (parts[0] === 'labs' && parts[1]) to = '#/labs';
-    else if (parts[0] && parts[0] !== 'labs' && parts[0] !== 'formulas' && parts[0] !== 'search' && parts[1]) to = '#/' + parts[0];
+    else if (parts[0] === 'practice' && parts[1]) to = parts[2] ? '#/practice/' + parts[1] : '#/practice';
+    else if (c) to = parts[1] ? '#/' + c.key : c.term ? '#/term/' + c.term : '#/';
     back.href = to;
     back.hidden = !parts.length;
     document.body.classList.toggle('at-home', !parts.length);
   }
   const title = (t, bar) => { document.title = t ? t + ' · Revise' : 'Revise'; $('#bar-title').textContent = bar || ''; };
+  REV.title = title;
+  REV.script = script;
 
   /* ------------------------------------------------------------------ home */
   function home(v) {
@@ -155,29 +164,66 @@
       h('h1', { text: 'Revise' }),
       h('p', { text: 'Week by week, every topic from the lectures, explained from the basics with every step. Labs to play with, and every formula in one place.' })));
     const grid = h('div', { class: 'tiles' });
-    for (const c of SITE.courses) {
+    for (const t of SITE.terms || []) {
+      const cs = t.courses.map(k => SITE.courses.find(c => c.key === k)).filter(Boolean);
+      const weeks = cs.reduce((a, c) => a + c.weeks.length, 0);
+      const done = cs.reduce((a, c) => a + c.weeks.filter(w => isDone(c.key + '/' + w.id)).length, 0);
+      grid.append(h('a', { class: 'tile tile-term', href: '#/term/' + t.id },
+        h('span', { class: 'tile-ic tile-num', text: t.id }),
+        h('span', { class: 'tile-t' }, h('b', { text: t.name }), h('small', { text: t.when })),
+        h('span', { class: 'tile-meta tile-list' }, cs.map(c => h('span', { class: 'chip', html: icon(c.icon) + esc(c.name) }))),
+        h('span', { class: 'tile-meta' }, h('span', { text: cs.length + ' courses · ' + weeks + ' weeks' + (done ? ' · ' + done + ' revised' : '') })),
+        done ? h('span', { class: 'tile-bar', style: '--p:' + Math.round(100 * done / weeks) + '%' }) : null));
+    }
+    v.append(grid);
+    const more = h('div', { class: 'tiles tiles-more' });
+    if (SITE.practice) {
+      const n = Object.values(SITE.practice).reduce((a, sets) => a + sets.length, 0);
+      more.append(h('a', { class: 'tile tile-wide', href: '#/practice' },
+        h('span', { class: 'tile-ic', html: icon('check') }),
+        h('span', { class: 'tile-t' }, h('b', { text: 'Practice' }), h('small', { text: 'Seek’s activity questions and assignments, timed' })),
+        h('span', { class: 'tile-meta' }, h('span', { text: n + ' sets' }))));
+    }
+    const nFormulas = SITE.formulaCount || null;
+    more.append(h('a', { class: 'tile tile-wide', href: '#/labs' },
+      h('span', { class: 'tile-ic', html: icon('flask') }),
+      h('span', { class: 'tile-t' }, h('b', { text: 'Labs' }), h('small', { text: SITE.labs.map(l => l.title.replace(/ lab$/, '')).join(' · ') })),
+      h('span', { class: 'tile-meta' }, h('span', { text: SITE.labs.length + ' labs, ' + SITE.labs.reduce((a, l) => a + l.topics.length, 0) + ' topics' }))));
+    more.append(h('a', { class: 'tile tile-wide', href: '#/formulas' },
+      h('span', { class: 'tile-ic', html: icon('formula') }),
+      h('span', { class: 'tile-t' }, h('b', { text: 'Formulas' }), h('small', { text: 'Every formula of every week, searchable' })),
+      h('span', { class: 'tile-meta' }, h('span', { text: nFormulas ? nFormulas + ' formulas' : 'Statistics, Mathematics, Python' }))));
+    v.append(more);
+    const ios = /iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone;
+    if (ios) v.append(h('p', { class: 'install', html: 'On your iPhone: tap <b>Share</b>, then <b>Add to Home Screen</b>. It opens full screen and works offline after the first visit.' }));
+  }
+
+  /* ------------------------------------------------------------------ term */
+  function term(v, t) {
+    title(t.name, t.name + ' · ' + t.when);
+    v.className = 'home';
+    v.append(h('header', { class: 'phead' }, h('div', { class: 'eyebrow', text: t.when }), h('h1', { text: t.name })));
+    const grid = h('div', { class: 'tiles' });
+    for (const c of t.courses.map(k => SITE.courses.find(x => x.key === k)).filter(Boolean)) {
       const ready = c.weeks.filter(w => w.ready).length + (c.all && c.all.ready ? 1 : 0);
       const total = c.weeks.length + 1;
       const done = c.weeks.filter(w => isDone(c.key + '/' + w.id)).length;
       grid.append(h('a', { class: 'tile', href: '#/' + c.key },
         h('span', { class: 'tile-ic', html: icon(c.icon) }),
         h('span', { class: 'tile-t' }, h('b', { text: c.name }), h('small', { text: c.full })),
-        h('span', { class: 'tile-meta' }, h('span', { class: 'tag' + (c.group === 'This term' ? ' now' : ''), text: c.group }),
-          h('span', { text: ready < total ? ready + ' of ' + total + ' pages ready' : c.weeks.length + ' weeks' + (done ? ' · ' + done + ' revised' : '') })),
+        h('span', { class: 'tile-meta' }, h('span', { text: ready < total ? ready + ' of ' + total + ' pages ready' : c.weeks.length + ' weeks' + (done ? ' · ' + done + ' revised' : '') })),
         done ? h('span', { class: 'tile-bar', style: '--p:' + Math.round(100 * done / c.weeks.length) + '%' }) : null));
     }
-    const nFormulas = SITE.formulaCount || null;
-    grid.append(h('a', { class: 'tile tile-wide', href: '#/labs' },
-      h('span', { class: 'tile-ic', html: icon('flask') }),
-      h('span', { class: 'tile-t' }, h('b', { text: 'Labs' }), h('small', { text: SITE.labs.map(l => l.title.replace(/ lab$/, '')).join(' · ') })),
-      h('span', { class: 'tile-meta' }, h('span', { text: SITE.labs.length + ' labs, ' + SITE.labs.reduce((a, l) => a + l.topics.length, 0) + ' topics' }))));
-    grid.append(h('a', { class: 'tile tile-wide', href: '#/formulas' },
-      h('span', { class: 'tile-ic', html: icon('formula') }),
-      h('span', { class: 'tile-t' }, h('b', { text: 'Formulas' }), h('small', { text: 'Every formula of every week, searchable' })),
-      h('span', { class: 'tile-meta' }, h('span', { text: nFormulas ? nFormulas + ' formulas' : 'Statistics, Mathematics, Python' }))));
     v.append(grid);
-    const ios = /iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone;
-    if (ios) v.append(h('p', { class: 'install', html: 'On your iPhone: tap <b>Share</b>, then <b>Add to Home Screen</b>. It opens full screen and works offline after the first visit.' }));
+  }
+
+  // the private copy's practice mode lives in practice.js, loaded on first use
+  function practiceRoute(v, parts, query) {
+    if (REV.practice) return REV.practice(v, parts, query);
+    v.append(h('div', { class: 'loading', text: 'Loading…' }));
+    const hash = location.hash;
+    script('practice.js').then(() => { if (location.hash === hash) route(); })
+      .catch(e => { v.innerHTML = ''; v.append(h('p', { class: 'empty', text: 'Practice did not load (' + e.message + ').' })); });
   }
 
   /* ------------------------------------------------------------------ course */
@@ -185,7 +231,7 @@
     title(c.name, c.name);
     v.className = 'course';
     v.append(h('header', { class: 'phead' },
-      h('div', { class: 'eyebrow', text: c.full + ' · ' + c.group }),
+      h('div', { class: 'eyebrow', text: c.full + ' · ' + ((SITE.terms || []).find(t => t.id === c.term) || { name: c.group }).name }),
       h('h1', { text: c.name }),
       c.blurb ? h('p', { class: 'lede', text: c.blurb }) : null));
     const list = h('ol', { class: 'weeks' });
@@ -238,9 +284,14 @@
       const article = h('article', { class: 'doc', html: p.html });
       const tocBtn = h('button', { class: 'toc-fab', type: 'button', html: icon('list') + '<span>Contents</span>' });
       tocBtn.addEventListener('click', () => openSheet(toc.cloneNode(true), 'On this page'));
+      const sets = SITE.practice && id !== 'all' ? (SITE.practice[c.key] || []).filter(x => x.week === w.n) : [];
+      const ga = sets.find(x => x.kind === 'GA');
+      const practiceLinks = sets.length ? h('div', { class: 'pr-links' },
+        h('a', { class: 'pill-link', href: '#/practice/' + c.key + '?w=' + w.n, html: icon('check') + '<span>Activity &amp; practice questions · ' + sets.filter(x => x.kind !== 'GA').length + ' sets</span>' }),
+        ga ? h('a', { class: 'pill-link', href: '#/practice/' + c.key + '/' + ga.id, html: icon('check') + '<span>Graded assignment</span>' }) : null) : null;
       v.append(
         h('header', { class: 'phead' }, h('div', { class: 'eyebrow', text: c.name + ' · ' + label }), h('h1', { text: p.title }), p.summary ? h('p', { class: 'lede', text: p.summary }) : null,
-          p.lectures && p.lectures.length ? lectures(p.lectures) : null),
+          practiceLinks, p.lectures && p.lectures.length ? lectures(p.lectures) : null),
         h('div', { class: 'doc-wrap' }, article, h('aside', { class: 'rail' }, toc)),
         h('div', { class: 'doc-end' }, done), nav, tocBtn);
       wireDoc(article, key);
