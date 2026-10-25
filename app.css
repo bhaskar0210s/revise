@@ -259,12 +259,24 @@ a.lablink { color: var(--pick); font-weight: 600; }
 .field:focus { outline: 2px solid var(--accent-line); outline-offset: 1px; border-color: var(--accent); }
 .search-in { max-width: 34rem; margin: 0 0 16px; }
 
+/* ---------------------------------------------------------------- one scroll bar: the page's */
+/* oneScroll() in app.js marks every box inside a page that scrolls: "x" scrolls sideways only, never up and down;
+   "y" was a capped box and grows to its full length */
+[data-one-scroll] { max-height: none !important; }
+[data-one-scroll="x"] { overflow-y: hidden !important; }
+[data-one-scroll="y"] { overflow-y: visible !important; }
+
 /* ---------------------------------------------------------------- sheet */
 .sheet-scrim { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .32); }
 .sheet { position: fixed; z-index: 60; left: 0; right: 0; bottom: 0; max-height: 78vh; display: flex; flex-direction: column; background: var(--bg-elev); border-radius: 20px 20px 0 0; box-shadow: var(--shadow-2); transform: translateY(100%); transition: transform .28s cubic-bezier(.2, .8, .2, 1); padding-bottom: env(safe-area-inset-bottom); }
 .sheet.open { transform: none; }
 @media (prefers-reduced-motion: reduce) { .sheet { transition: none; } }
 @media (min-width: 700px) { .sheet { left: auto; right: 16px; bottom: 16px; width: 420px; border-radius: 18px; max-height: 80vh; } }
+.sheet.drop { left: auto; bottom: auto; width: min(360px, calc(100vw - 16px)); max-height: calc(100vh - 80px); border-radius: 16px; opacity: 0; transform: translateY(-6px); transition: opacity .15s, transform .15s; }
+.sheet.drop.open { opacity: 1; transform: none; }
+.sheet.drop .sheet-handle { display: none; }
+.sheet.drop .sheet-bar { padding: 12px 14px 8px; }
+.sheet-scrim.clear { background: transparent; }
 .sheet-bar { position: relative; display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; border-bottom: 1px solid var(--line); }
 .sheet-bar b { flex: 1; }
 .sheet-handle { position: absolute; left: 50%; top: 6px; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: var(--line-2); }

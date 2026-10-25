@@ -421,7 +421,7 @@
   function search(v, q) {
     title('Search', 'Search');
     v.className = 'search';
-    const input = h('input', { class: 'field search-in', type: 'search', placeholder: 'Search topics, formulas and labs…', value: q, 'aria-label': 'Search' });
+    const input = h('input', { class: 'field search-in', type: 'search', placeholder: SITE.practice ? 'Search topics, formulas, labs and Seek questions…' : 'Search topics, formulas and labs…', value: q, 'aria-label': 'Search' });
     const out = h('div', { class: 'results' });
     v.append(h('header', { class: 'phead' }, h('h1', { text: 'Search' })), input, out);
     setTimeout(() => input.focus(), 50);
@@ -433,7 +433,9 @@
         if (!words.length) return;
         const hit = s => words.every(wd => s.toLowerCase().includes(wd));
         const labHits = labsList.filter(x => hit(x.t.title + ' ' + x.lab.title)).slice(0, 8);
-        const pageHits = list.filter(x => hit(x.t)).slice(0, 60);
+        const pageHits = list.filter(x => x.p !== 'practice' && hit(x.t)).slice(0, 60);
+        // the private copy also finds Seek's sets and questions (by title, kind or words of the question)
+        const practiceHits = list.filter(x => x.p === 'practice' && hit(x.t + ' ' + x.k + ' ' + (x.s || ''))).sort((a, b) => !!a.s - !!b.s).slice(0, 60);
         if (labHits.length) out.append(h('h2', { class: 'sec', text: 'Labs' }), h('div', { class: 'chips wrap' }, labHits.map(x => h('a', { class: 'chip', href: '#/labs/' + x.lab.id + '/' + x.t.id, text: x.lab.title.replace(/ lab$/, '') + ': ' + x.t.title }))));
         if (pageHits.length) {
           out.append(h('h2', { class: 'sec', text: 'In the weeks' }));
@@ -441,7 +443,13 @@
           pageHits.forEach(x => { const c = SITE.courses.find(cc => cc.key === x.c); ul.append(h('li', {}, h('a', { href: '#/' + x.c + '/' + x.p + '/' + x.a }, h('b', { text: x.t }), h('small', { text: (c ? c.name : x.c) + ' · ' + (x.w ? 'Week ' + x.w : 'All weeks') + (x.f ? ' · formula' : '') })))); });
           out.append(ul);
         }
-        if (!labHits.length && !pageHits.length) out.append(h('p', { class: 'empty', text: 'Nothing found for “' + input.value + '”.' }));
+        if (practiceHits.length) {
+          out.append(h('h2', { class: 'sec', text: 'Practice' }));
+          const ul = h('ul', { class: 'hits' });
+          practiceHits.forEach(x => { const c = SITE.courses.find(cc => cc.key === x.c); ul.append(h('li', {}, h('a', { href: '#/practice/' + x.c + '/' + x.a }, h('b', { text: x.s ? x.s : x.t }), h('small', { text: (c ? c.name : x.c) + ' · Week ' + x.w + ' · ' + x.k + (x.s ? ' · ' + x.t.slice(0, 90) + (x.t.length > 90 ? '…' : '') : '') })))); });
+          out.append(ul);
+        }
+        if (!labHits.length && !pageHits.length && !practiceHits.length) out.append(h('p', { class: 'empty', text: 'Nothing found for “' + input.value + '”.' }));
       };
       input.addEventListener('input', () => { REV.setQuery('#/search', { q: input.value }); draw(); });
       draw();
@@ -451,14 +459,21 @@
   function notFound(v) { title('Not found', ''); v.append(h('header', { class: 'phead' }, h('h1', { text: 'Not found' }), h('p', { class: 'lede', html: 'That page does not exist. <a href="#/">Go home</a>.' }))); }
 
   /* ------------------------------------------------------------------ sheet + settings */
-  function openSheet(content, heading) {
+  // a sheet from the bottom, or with an anchor a dropdown under that button (settings)
+  function openSheet(content, heading, anchor) {
     closeSheet();
-    const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-label': heading },
+    const sheet = h('div', { class: 'sheet' + (anchor ? ' drop' : ''), role: 'dialog', 'aria-label': heading },
       h('div', { class: 'sheet-bar' }, h('i', { class: 'sheet-handle' }), h('b', { text: heading }), h('button', { class: 'btn sm', type: 'button', text: 'Done', onclick: closeSheet })),
       h('div', { class: 'sheet-body' }, content));
     sheet.addEventListener('click', e => { if (e.target.closest('a[href^="#/"]')) setTimeout(closeSheet, 0); });
+    if (anchor) {
+      const r = anchor.getBoundingClientRect();
+      sheet.style.top = Math.round(r.bottom + 8) + 'px';
+      sheet.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px';
+    }
     document.body.append(sheet);
     $('#scrim').hidden = false;
+    $('#scrim').classList.toggle('clear', !!anchor);
     requestAnimationFrame(() => sheet.classList.add('open'));
   }
   function closeSheet() { document.querySelectorAll('.sheet').forEach(s => s.remove()); const sc = $('#scrim'); if (sc) sc.hidden = true; }
@@ -477,11 +492,48 @@
       h('label', { text: 'Text size' }), seg([['0.9', 'Small'], ['1', 'Normal'], ['1.12', 'Large'], ['1.25', 'Larger']], REV.store.get('size', '1'), v => { REV.store.set('size', v); d.style.setProperty('--size', v); }),
       h('label', { text: 'Progress' }), h('button', { class: 'btn sm ghost', type: 'button', text: 'Clear all “revised” marks', onclick: e => { if (e.currentTarget.dataset.armed) { REV.store.set('done', {}); closeSheet(); route(); } else { e.currentTarget.dataset.armed = '1'; e.currentTarget.textContent = 'Tap again to clear'; } } }),
       h('p', { class: 'small', text: 'Everything is kept in this browser only.' }));
-    openSheet(body, 'Settings');
+    openSheet(body, 'Settings', $('#settings-btn'));
+  }
+
+  /* ------------------------------------------------------------------ one scroll bar: the page's */
+  // Nothing inside a page scrolls up and down, as in the labs: a box with a few pixels of vertical overflow (tall maths
+  // in a solution) would catch the trackpad and stop the page. Every box that scrolls is marked: data-one-scroll="x"
+  // (it scrolls sideways: keep that, never up and down) or "y" (a capped box: let it grow); app.css turns the marks
+  // into styles. Panes keep their own scrolling: the sticky contents rail, the timers, sheets (outside #view), fields.
+  function oneScroll() {
+    const root = view(), scrolls = v => v === 'auto' || v === 'scroll';
+    const check = el => {
+      if (el.hasAttribute('data-one-scroll') || el.matches('.rail, .pr-panel, textarea, select, input')) return;
+      const cs = getComputedStyle(el);
+      const x = scrolls(cs.overflowX), y = scrolls(cs.overflowY);
+      if (!x && !y) return;
+      if (cs.position === 'fixed' || cs.position === 'sticky') return;
+      el.setAttribute('data-one-scroll', x ? 'x' : 'y');
+    };
+    // KaTeX output and drawings never scroll; skip their insides (most of the nodes on a page)
+    const inert = el => el.matches('.katex, svg');
+    const scan = node => {
+      if (node.nodeType !== 1 || !node.isConnected || inert(node)) return;
+      check(node);
+      const walk = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT, { acceptNode: n => (inert(n) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) check(n);
+    };
+    const pending = new Set();
+    let frame = 0;
+    new MutationObserver(list => {
+      list.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) pending.add(n); }));
+      if (pending.size && !frame) frame = requestAnimationFrame(() => { frame = 0; pending.forEach(scan); pending.clear(); });
+    }).observe(root, { childList: true, subtree: true });
+    scan(root);
+    // a box can start scrolling at another width (phone rules), or when a style sheet arrives (the solutions' own)
+    let wait = 0;
+    addEventListener('resize', () => { clearTimeout(wait); wait = setTimeout(() => scan(root), 250); });
+    document.addEventListener('load', e => { if (e.target.tagName === 'LINK') scan(root); }, true);
   }
 
   /* ------------------------------------------------------------------ start */
   REV.start = function () {
+    oneScroll();
     $('#settings-btn').addEventListener('click', settings);
     $('#search-btn').addEventListener('click', () => { location.hash = '#/search'; });
     $('#scrim').addEventListener('click', closeSheet);
