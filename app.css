@@ -7,6 +7,7 @@
   --accent: #4655d4; --accent-ink: #3340b5; --accent-soft: #e9ebfb; --accent-line: #b9c0f1;
   --good: #1f8a4c; --good-soft: #e3f4ea; --bad: #c0362c; --bad-soft: #fbe9e7; --warn: #a15c00; --warn-soft: #fbf0dd;
   --x: #2f6fde; --y: #e0701c; --z: #13917f; --pick: #7b4fd6; --pick-soft: #f0eafc;
+  --heat-lo: #f2b170; --heat-hi: #9a3a05;
   --shadow-1: 0 1px 2px rgba(20, 20, 30, .06), 0 1px 1px rgba(20, 20, 30, .04);
   --shadow-2: 0 6px 20px rgba(20, 20, 30, .08), 0 2px 6px rgba(20, 20, 30, .05);
   --r: 14px; --r-lg: 18px;
@@ -24,6 +25,7 @@
     --accent: #8d98ff; --accent-ink: #aab2ff; --accent-soft: #23264a; --accent-line: #3d4380;
     --good: #4cc584; --good-soft: #17301f; --bad: #ff7a6e; --bad-soft: #3a1c19; --warn: #f0b356; --warn-soft: #33270f;
     --x: #6ea1ff; --y: #ff9d57; --z: #3fcbb5; --pick: #b38cff; --pick-soft: #2b2140;
+    --heat-lo: #7a4214; --heat-hi: #ffb771;
     --shadow-1: 0 1px 2px rgba(0, 0, 0, .4); --shadow-2: 0 8px 24px rgba(0, 0, 0, .45);
     color-scheme: dark;
   }
@@ -35,6 +37,7 @@
   --accent: #8d98ff; --accent-ink: #aab2ff; --accent-soft: #23264a; --accent-line: #3d4380;
   --good: #4cc584; --good-soft: #17301f; --bad: #ff7a6e; --bad-soft: #3a1c19; --warn: #f0b356; --warn-soft: #33270f;
   --x: #6ea1ff; --y: #ff9d57; --z: #3fcbb5; --pick: #b38cff; --pick-soft: #2b2140;
+  --heat-lo: #7a4214; --heat-hi: #ffb771;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .4); --shadow-2: 0 8px 24px rgba(0, 0, 0, .45);
   color-scheme: dark;
 }
@@ -136,9 +139,22 @@ a.wk-a:hover { text-decoration: none; border-color: var(--accent-line); }
 .lects li a:hover { background: var(--bg-sunk); text-decoration: none; }
 .lc-code { font-family: var(--mono); font-size: .85em; color: var(--accent-ink); }
 .lc-d { color: var(--ink-4); font-size: .85em; font-variant-numeric: tabular-nums; }
-.doc-wrap { display: grid; grid-template-columns: minmax(0, var(--measure)) 1fr; gap: 48px; align-items: start; }
+/* a week page fills the window: the text takes all the width the "On this page" rail leaves, and all of it when the
+   rail is hidden (the panel button in the bar sets html.rail-off) */
+#view.week { max-width: none; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.week .phead, .week .doc-end, .week .pager { max-width: none; }
+.doc-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 40px; align-items: start; }
 .rail { position: sticky; top: 72px; max-height: calc(100vh - 90px); overflow: auto; padding: 4px 0 20px; }
 .toc-h { font-size: 12px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 8px 12px; }
+.rail-off .doc-wrap { grid-template-columns: minmax(0, 1fr); }
+.rail-off .rail { display: none; }
+#rail-btn { display: none; }
+body:has(.doc-wrap) #rail-btn, body:has(.lab-wrap) #rail-btn { display: grid; }
+/* its icon shows the panel's side (a week's rail on the right, a lab's topics on the left), the pane empty when hidden */
+#rail-btn .pane { fill: currentColor; stroke: none; opacity: .3; }
+#rail-btn .l, body:has(.lab-wrap) #rail-btn .r { display: none; }
+body:has(.lab-wrap) #rail-btn .l { display: inline; }
+.rail-off #rail-btn .pane.r, .lab-nav-off #rail-btn .pane.l { opacity: 0; }
 .toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .toc a { display: block; padding: 7px 12px; border-radius: 9px; color: var(--ink-3); font-size: 14px; line-height: 1.35; border-left: 2px solid transparent; }
 .toc a:hover { color: var(--ink); background: var(--bg-sunk); text-decoration: none; }
@@ -146,7 +162,7 @@ a.wk-a:hover { text-decoration: none; border-color: var(--accent-line); }
 .toc-fab { display: none; }
 @media (max-width: 1100px) {
   .doc-wrap { grid-template-columns: minmax(0, 1fr); }
-  .rail { display: none; }
+  .rail, body:has(.doc-wrap) #rail-btn { display: none; }
   .toc-fab { display: inline-flex; position: fixed; z-index: 30; right: max(16px, env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); align-items: center; gap: 8px; height: 46px; padding: 0 18px; border-radius: 99px; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg-elev) 92%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: var(--shadow-2); color: var(--ink); font-weight: 650; font-size: 15px; cursor: pointer; }
   .toc-fab .ic { width: 18px; height: 18px; color: var(--accent); }
 }
@@ -196,6 +212,21 @@ a.wk-a:hover { text-decoration: none; border-color: var(--accent-line); }
 .doc th, .doc td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .doc th { background: var(--bg-sunk); font-weight: 650; }
 .doc tr:last-child td { border-bottom: 0; }
+/* ::: scatter (build.mjs): small scatter plots of our own dots, 2 a row on a phone, 3 on a tablet, 6 on a laptop.
+   Text inside the SVG scales with it, so the plots are kept between about 170 and 220 px wide. */
+.doc .scat { margin: 1.2em 0; container-type: inline-size; }
+.scat-g { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; max-width: 460px; }
+@container (min-width: 600px) { .scat-g { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 690px; } }
+@container (min-width: 1100px) { .scat-g { grid-template-columns: repeat(6, minmax(0, 1fr)); max-width: 1380px; } }
+.scat svg { display: block; width: 100%; height: auto; }
+.scat .sf { fill: none; stroke: var(--line-2); }
+.scat .s0 { fill: none; stroke: var(--line-2); stroke-dasharray: 3 3; }
+.scat .st { fill: var(--ink-3); font: 12px var(--font); }
+.scat .sd { fill: var(--accent); stroke: var(--bg); stroke-width: .9; }
+.scat-c { display: flex; justify-content: center; align-items: baseline; gap: 10px; color: var(--ink); }
+.scat-c b { font-weight: 700; }
+.doc .scat figcaption { margin-top: 10px; color: var(--ink-2); font-size: .92em; }
+.doc .scat figcaption p { margin: 0; }
 /* KaTeX keeps a hidden copy of each formula, absolutely positioned: anchor it to its formula so it cannot
    escape a scrolling table or box and make the whole page scroll sideways on a phone */
 .katex { position: relative; }
@@ -237,6 +268,8 @@ a.wk-a:hover { text-decoration: none; border-color: var(--accent-line); }
 .ck-k::after { content: ' · tap to see the answer'; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-4); }
 .ck[open] .ck-k::after { content: ''; }
 .ck-q { font-weight: 600; }
+/* the question is semibold, so a bold part in it ("Is the bold part a complement…?") is marked as well, or it hides in the line */
+.ck-q strong { font-weight: 800; padding: 0 .12em; border-radius: 5px; background: color-mix(in srgb, var(--pick) 26%, transparent); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .ck-a { padding: 0 16px 12px; border-top: 1px dashed var(--line); }
 .labcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; margin: 1em 0; padding: 12px 16px; border-radius: var(--r); background: var(--pick-soft); border: 1px solid color-mix(in srgb, var(--pick) 35%, transparent); color: var(--ink); }
 .labcard:hover { text-decoration: none; border-color: var(--pick); }
@@ -265,6 +298,60 @@ a.lablink { color: var(--pick); font-weight: 600; }
 [data-one-scroll] { max-height: none !important; }
 [data-one-scroll="x"] { overflow-y: hidden !important; }
 [data-one-scroll="y"] { overflow-y: visible !important; }
+
+/* ---------------------------------------------------------------- how far down the page */
+/* while the reader moves the page, a tag beside the scroll bar's thumb (app.js scrollTag); --sb is the room the
+   page's scroll bar takes (a mouse on a Mac shows one; "right" already starts at its edge), 0 where the bar floats
+   over the page (a phone, a trackpad), and then the tag keeps clear of it */
+#scroll-pct { position: fixed; top: 0; right: calc(max(11px - var(--sb, 0px), var(--rv-w, 0px)) + 5px + env(safe-area-inset-right)); z-index: 45; min-width: 46px; height: 26px; padding: 0 9px; border-radius: 13px; display: grid; place-items: center;
+  background: var(--accent); color: var(--bg); font: 650 13px / 1 var(--font); font-variant-numeric: tabular-nums; box-shadow: var(--shadow-2); pointer-events: none; opacity: 0; transition: opacity .3s; }
+#scroll-pct::after { content: ""; position: absolute; right: -3px; top: 50%; width: 8px; height: 8px; margin-top: -4px; background: inherit; border-radius: 1px; transform: rotate(45deg); }
+#scroll-pct.on { opacity: 1; transition-duration: .1s; }
+@media (prefers-reduced-motion: reduce) { #scroll-pct { transition: none; } }
+
+/* ---------------------------------------------------------------- a revision */
+/* (app.js rv…) the bar button: "Start revision", then the revision's time with a dot (beating while it counts, hollow
+   when paused or on a break); the strip beside the scroll bar: a block per section of the page, in proportion, hollow
+   until read, then --heat-lo → --heat-hi the longer it was read (one hue; its lightness climbs steadily, 0.81 → 0.48 on
+   light, 0.44 → 0.83 on dark), the section at the reading line ringed and wider; the tag naming a block; the panel */
+.rv-btn { width: auto; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px 0 10px; font-size: 14px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rv-btn.run, .rv-btn.held { color: var(--ink); background: var(--bg-sunk); }
+.rv-btn.run svg, .rv-btn.held svg { display: none; }
+.rv-btn.run::before, .rv-btn.held::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--heat-hi); }
+.rv-btn.run::before { animation: rv-beat 2s ease-in-out infinite; }
+.rv-btn.held::before { background: transparent; box-shadow: inset 0 0 0 2px var(--ink-3); }
+@keyframes rv-beat { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .rv-btn.run::before { animation: none; } }
+@media (max-width: 560px) { .rv-btn:not(.run):not(.held) { width: 44px; padding: 0; justify-content: center; } .rv-btn:not(.run):not(.held) .rv-t { display: none; } }
+html.rv-on { --rv-w: 14px; }
+#rv-strip { position: fixed; top: 0; bottom: 0; right: env(safe-area-inset-right); width: 11px; z-index: 44; }
+.rv-b { position: absolute; right: 2px; width: 7px; min-height: 3px; border-radius: 2px; border-block: 1px solid transparent; background-clip: padding-box; box-shadow: inset 0 0 0 1px var(--line-2); }
+.rv-b.read { box-shadow: none; background-color: color-mix(in oklab, var(--heat-lo), var(--heat-hi) calc(var(--t, 0) * 100%)); }
+.rv-b.on { right: 0; width: 11px; z-index: 1; box-shadow: 0 0 0 1.5px var(--ink); }
+.rv-b.on:not(.read) { box-shadow: inset 0 0 0 1px var(--line-2), 0 0 0 1.5px var(--ink); }
+@media (pointer: coarse) { #rv-strip::before { content: ""; position: absolute; top: calc(52px + env(safe-area-inset-top)); bottom: 0; right: 0; width: 22px; } }
+#rv-tip { position: fixed; top: 0; right: calc(18px + env(safe-area-inset-right)); z-index: 46; display: flex; gap: 6px; max-width: min(420px, calc(100vw - 60px)); height: 26px; padding: 0 10px; border-radius: 8px;
+  background: var(--ink); color: var(--bg); font: 600 13px / 26px var(--font); font-variant-numeric: tabular-nums; white-space: nowrap; box-shadow: var(--shadow-2); pointer-events: none; opacity: 0; transition: opacity .15s; }
+#rv-tip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#rv-tip b { flex: none; font-weight: 700; }
+#rv-tip b::before { content: "·"; margin-right: 6px; font-weight: 600; opacity: .6; }
+#rv-tip.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { #rv-tip { transition: none; } }
+.rv-panel { display: grid; gap: 12px; }
+.rv-now { display: grid; gap: 2px; }
+.rv-big { font-size: 34px; line-height: 1.1; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
+.rv-st { font-size: 13.5px; line-height: 1.4; color: var(--ink-3); }
+.rv-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.rv-h { display: flex; justify-content: space-between; gap: 10px; margin: 8px 0 4px; font-size: 12px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.rv-h span { letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.rv-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.rv-rows li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 4px 0; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.rv-rows li.np { grid-template-columns: minmax(0, 1fr) auto; }
+.rv-rows li.on { color: var(--ink); font-weight: 650; }
+.rv-rows .tm { color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rv-sw { width: 10px; height: 10px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--line-2); }
+.rv-sw.read { box-shadow: none; background-color: color-mix(in oklab, var(--heat-lo), var(--heat-hi) calc(var(--t, 0) * 100%)); }
+.rv-key { margin: 6px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-3); }
 
 /* ---------------------------------------------------------------- sheet */
 .sheet-scrim { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .32); }
@@ -321,13 +408,40 @@ a.lablink { color: var(--pick); font-weight: 600; }
   .pg-next { text-align: left; }
 }
 @media print {
-  header.bar, .toc-fab, .rail, .pager, .doc-end, .lects { display: none !important; }
+  header.bar, .toc-fab, .rail, .lab-nav, .pager, .doc-end, .lects, #scroll-pct, #rv-strip, #rv-tip { display: none !important; }
   .doc-wrap { display: block; }
   .ck-a { display: block !important; }
 }
 
+/* ---------------------------------------------------------------- a lab page */
+/* it fills the window: the lab's topics down the left (240 px, with a find box; the panel button in the bar sets
+   html.lab-nav-off and hides them), the lab in all the rest; narrow screens open the topics from a Topics button */
+#view.lab { max-width: none; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.lab .phead { max-width: none; }
+.lab-wrap { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 28px; align-items: start; }
+.lab-main { min-width: 0; }
+.lab-wrap > .lab-nav { position: sticky; top: calc(60px + env(safe-area-inset-top)); max-height: calc(100vh - 60px - env(safe-area-inset-top)); overflow: auto; overscroll-behavior: contain; padding: 8px 4px 28px 3px; scrollbar-width: thin; }
+.lab-nav-off .lab-wrap { grid-template-columns: minmax(0, 1fr); }
+.lab-nav-off .lab-wrap > .lab-nav { display: none; }
+.ln-find { position: sticky; top: 0; z-index: 1; padding: 4px 0 10px; background: var(--bg); }
+.sheet .ln-find { background: var(--bg-elev); }
+.ln-find .ic { position: absolute; left: 12px; top: 15px; width: 18px; height: 18px; color: var(--ink-3); pointer-events: none; }
+.ln-in { height: 40px; min-height: 40px; padding: 6px 10px 6px 38px; border-radius: 11px; }
+.lab-nav .toc-h { margin: 6px 0 6px 12px; }
+.lab-nav .ln-else { margin-top: 18px; }
+.ln-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.ln-list a { display: block; padding: 7px 12px; border-radius: 9px; color: var(--ink-2); font-size: 14.5px; line-height: 1.35; }
+.ln-list a:hover { background: var(--bg-sunk); color: var(--ink); text-decoration: none; }
+.ln-list a.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 650; }
+.ln-list a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ln-none { margin: 2px 12px 8px; font-size: 14px; color: var(--ink-3); }
+.sheet-body .ln-list a { font-size: 15.5px; padding: 10px 12px; }
+@media (max-width: 1100px) {
+  .lab-wrap { grid-template-columns: minmax(0, 1fr); }
+  .lab-wrap > .lab-nav, body:has(.lab-wrap) #rail-btn { display: none; }
+}
+
 /* ---------------------------------------------------------------- labs (labkit.js) */
-.lab-body { max-width: 1100px; }
 .lk { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 18px; align-items: start; }
 @media (max-width: 860px) { .lk { grid-template-columns: minmax(0, 1fr); } }
 .lk-controls { position: sticky; top: 64px; display: grid; gap: 14px; padding: 16px; border-radius: var(--r-lg); background: var(--bg-elev); border: 1px solid var(--line); box-shadow: var(--shadow-1); }

@@ -86,6 +86,7 @@
     arrow: '<path d="M9 5l7 7-7 7"/>',
     play: '<path d="M8 5.5v13l10-6.5z"/>',
     list: '<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+    find: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
   };
   const icon = (name, cls) => '<svg class="' + (cls || 'ic') + '" viewBox="0 0 24 24" aria-hidden="true">' + (I[name] || I.book) + '</svg>';
   REV.icon = icon;
@@ -120,6 +121,7 @@
     v.innerHTML = '';
     v.className = '';
     document.body.dataset.route = parts[0] || 'home';
+    if (parts[0] !== 'labs' || !parts[1]) labFind.lab = '';   // a lab opened from elsewhere starts with an empty find box
     try {
       if (!SITE) v.append(h('p', { class: 'empty', text: 'The site data did not load. Reload the page.' }));
       else if (!parts.length) home(v);
@@ -139,7 +141,23 @@
       v.append(h('div', { class: 'callout warn', text: 'This page could not be shown: ' + e.message }));
     }
     setBack(parts);
+    panelState();
     if (!(parts[2] && /^(w\d\d|all)$/.test(parts[1] || ''))) window.scrollTo(0, 0);
+  }
+  // The panel button in the bar (wide screens) hides the page's side panel so the page fills the window: a week's
+  // "On this page" rail (html.rail-off) or a lab's topic list (html.lab-nav-off). Each is kept in this browser for
+  // every page of its kind; index.html sets both before the first paint.
+  const PANELS = {
+    rail: { cls: 'rail-off', key: 'railOff', show: ['Show the contents', 'Show “On this page”'], hide: ['Hide the contents', 'Hide “On this page”: the text fills the window'] },
+    lab: { cls: 'lab-nav-off', key: 'labNavOff', show: ['Show the topics', 'Show the list of topics'], hide: ['Hide the topics', 'Hide the list of topics: the lab fills the window'] },
+  };
+  const panel = () => (document.querySelector('#view .lab-wrap') ? PANELS.lab : PANELS.rail);
+  function panelState() {
+    const btn = $('#rail-btn'), p = panel(), off = document.documentElement.classList.contains(p.cls), [label, tip] = off ? p.show : p.hide;
+    if (!btn) return;
+    btn.setAttribute('aria-expanded', off ? 'false' : 'true');
+    btn.setAttribute('aria-label', label);
+    btn.title = tip;
   }
   function setBack(parts) {
     const back = $('#back');
@@ -271,8 +289,10 @@
       if (current.split('/').slice(0, 2).join('/') !== c.key + '/' + id) return;
       v.innerHTML = '';
       const key = c.key + '/' + id;
-      const toc = h('nav', { class: 'toc', 'aria-label': 'On this page' }, h('div', { class: 'toc-h', text: 'On this page' }),
+      const toc = h('nav', { class: 'toc', 'aria-label': 'On this page' },
         h('ol', {}, p.toc.filter(t => t.level === 2).map(t => h('li', {}, h('a', { href: '#/' + key + '/' + t.id, 'data-id': t.id, text: t.title })))));
+      // the rail's heading sits outside the nav, so the Contents sheet (which shows a copy of the nav) has one heading
+      const rail = h('aside', { class: 'rail' }, h('div', { class: 'toc-h', text: 'On this page' }), toc);
       const done = h('button', { class: 'btn done-btn' + (isDone(key) ? ' on' : ''), type: 'button', html: icon('check') + '<span>' + (isDone(key) ? 'Revised' : 'Mark as revised') + '</span>' });
       done.addEventListener('click', () => { const on = !isDone(key); setDone(key, on); done.classList.toggle('on', on); done.lastChild.textContent = on ? 'Revised' : 'Mark as revised'; });
       const idx = c.weeks.findIndex(x => x.id === id);
@@ -292,7 +312,7 @@
       v.append(
         h('header', { class: 'phead' }, h('div', { class: 'eyebrow', text: c.name + ' · ' + label }), h('h1', { text: p.title }), p.summary ? h('p', { class: 'lede', text: p.summary }) : null,
           practiceLinks, p.lectures && p.lectures.length ? lectures(p.lectures) : null),
-        h('div', { class: 'doc-wrap' }, article, h('aside', { class: 'rail' }, toc)),
+        h('div', { class: 'doc-wrap' }, article, rail),
         h('div', { class: 'doc-end' }, done), nav, tocBtn);
       wireDoc(article, key);
       spy(article, toc);
@@ -321,6 +341,63 @@
     const top = el.getBoundingClientRect().top + window.scrollY - 64;
     window.scrollTo({ top, behavior: jump || matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400);
+  }
+  /** Keep the line being read where it is while the text reflows to a new width (the contents rail hidden or shown):
+      find the innermost block under the line just below the top bar, and scroll so the same point of it stays there. */
+  function keepPlace(article, change) {
+    if (!article) return change();
+    const line = 72;
+    let el = article;
+    for (let i = 0; i < 12; i++) {
+      const kid = [...el.children].find(k => { const b = k.getBoundingClientRect(); return b.height > 0 && b.bottom > line; });
+      if (!kid) break;
+      el = kid;
+      if (kid.getBoundingClientRect().top >= line || kid.matches('p, li, h2, h3, h4, pre, tr, summary, .md, svg, img')) break;
+    }
+    const a = el.getBoundingClientRect();
+    const f = a.height ? Math.min(1, Math.max(0, (line - a.top) / a.height)) : 0;
+    change();
+    const b = el.getBoundingClientRect();
+    window.scrollBy(0, (b.top + f * b.height) - (a.top + f * a.height));
+  }
+  /** How far down the page: while the reader moves the page (wheel, touch, a scroll key or the scroll bar), a tag beside
+      the scroll bar's thumb shows the share of the page above the window, 0% at the top and 100% at the bottom, and
+      fades a moment after the page stops. The page's own jumps (a new page, a contents link, the panel button) show none. */
+  function scrollTag() {
+    const root = document.documentElement, tag = h('div', { id: 'scroll-pct', 'aria-hidden': 'true' });
+    document.body.append(tag);
+    const KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
+    let moved = -1e9, held = false, frame = 0, idle = 0;
+    const move = () => { moved = performance.now(); };
+    addEventListener('wheel', move, { passive: true });
+    addEventListener('touchmove', move, { passive: true });
+    addEventListener('keydown', e => { if (KEYS.has(e.key) && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && !e.target.isContentEditable) move(); });
+    // a press on the page's scroll bar lands on <html>, or at the window's right edge where a floating bar sits
+    addEventListener('pointerdown', e => { held = e.target === root || e.clientX >= root.clientWidth - 14 || e.button === 1; }, true);
+    addEventListener('pointerup', () => { held = false; }, true);
+    addEventListener('pointercancel', () => { held = false; }, true);
+    // a new page starts at its top without the tag, even straight after a scroll
+    addEventListener('hashchange', () => { moved = -1e9; tag.classList.remove('on'); });
+    const show = () => {
+      frame = 0;
+      const H = innerHeight, full = root.scrollHeight, max = full - H;
+      if (max < 1) return;
+      const y = scrollY, f = Math.min(1, Math.max(0, y / max));
+      const thumb = Math.max(32, H * H / full);   // the thumb's length, near enough
+      const top = $('#bar').getBoundingClientRect().bottom + 6;
+      const fab = $('.toc-fab'), fb = fab && fab.getBoundingClientRect();
+      const bottom = (fb && fb.height ? fb.top : H) - 6;
+      const th = tag.offsetHeight;
+      tag.textContent = (y >= max - 2 ? 100 : Math.floor(f * 100)) + '%';
+      tag.style.setProperty('--sb', innerWidth - root.clientWidth + 'px');
+      tag.style.transform = 'translateY(' + Math.round(Math.max(top, Math.min(bottom - th, thumb / 2 + f * (H - thumb) - th / 2))) + 'px)';
+      tag.classList.add('on');
+      clearTimeout(idle);
+      idle = setTimeout(() => tag.classList.remove('on'), 900);
+    };
+    addEventListener('scroll', () => {
+      if (!frame && (held || tag.classList.contains('on') || performance.now() - moved < 700)) frame = requestAnimationFrame(show);
+    }, { passive: true });
   }
   /** Highlight the section being read in the table of contents. */
   function spy(article, toc) {
@@ -353,12 +430,19 @@
     const topic = def.topics.find(t => t.id === parts[2]) || def.topics[0];
     title(def.title + ' · ' + topic.title, def.title);
     v.className = 'lab';
-    v.append(h('header', { class: 'phead' }, h('div', { class: 'eyebrow', text: def.group + ' · ' + def.title }), h('h1', { text: topic.title })));
-    const chips = h('div', { class: 'chips', role: 'tablist', 'aria-label': 'Topics' }, def.topics.map(t => h('a', { class: 'chip' + (t.id === topic.id ? ' on' : ''), href: '#/labs/' + def.id + '/' + t.id, role: 'tab', 'aria-selected': t.id === topic.id ? 'true' : 'false', text: t.title })));
-    v.append(chips);
+    if (labFind.lab !== def.id) Object.assign(labFind, { lab: def.id, q: '', top: 0 });
+    const nav = labNav(def, topic);
     const body = h('div', { class: 'lab-body' });
-    v.append(body);
-    requestAnimationFrame(() => { const on = chips.querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' }); });
+    const main = h('div', { class: 'lab-main' }, h('header', { class: 'phead' }, h('div', { class: 'eyebrow', text: def.group + ' · ' + def.title }), h('h1', { text: topic.title })), body);
+    const topicsBtn = h('button', { class: 'toc-fab', type: 'button', html: icon('list') + '<span>Topics</span>' });
+    topicsBtn.addEventListener('click', () => openSheet(labNav(def, topic), def.title));
+    v.append(h('div', { class: 'lab-wrap' }, nav, main), topicsBtn);
+    // the list stays where it was scrolled to while the reader moves between this lab's topics; arriving from
+    // another lab or page, it shows the topic that is open
+    const on = nav.querySelector('a.on');
+    if (labFind.top) nav.scrollTop = labFind.top;
+    else if (on && on.offsetTop + on.offsetHeight > nav.clientHeight) nav.scrollTop = on.offsetTop - nav.clientHeight / 3;
+    nav.addEventListener('scroll', () => { labFind.top = nav.scrollTop; }, { passive: true });
     if (!impl || !impl.topics || !impl.topics[topic.id]) { body.append(h('div', { class: 'callout note', text: 'This lab topic is being built.' })); return; }
     const ctx = { base: '#/labs/' + def.id + '/' + topic.id, def, topic, used: new Set() };
     try { impl.topics[topic.id](body, query, ctx); }
@@ -367,7 +451,67 @@
     const unread = Object.keys(query || {}).filter(k => ctx.used.size && !ctx.used.has(k));
     if (unread.length) console.warn('[lab] ' + def.id + '/' + topic.id + ' does not read the link value(s): ' + unread.join(', '));
     const used = (topic.for || []).map(f => { const [ck, wid] = f.split('/'); const c = SITE.courses.find(x => x.key === ck); const w = c && c.weeks.find(x => x.id === wid); return c && w ? h('a', { class: 'pill-link sm', href: '#/' + ck + '/' + wid, text: c.name + ' · Week ' + w.n }) : null; }).filter(Boolean);
-    if (used.length) v.append(h('div', { class: 'used-in' }, h('span', { text: 'Revise it in' }), used));
+    if (used.length) main.append(h('div', { class: 'used-in' }, h('span', { text: 'Revise it in' }), used));
+  }
+  // A lab's topics: down the side on wide screens (the panel button in the bar hides the list: html.lab-nav-off), in a
+  // sheet from the Topics button on narrow ones. The box finds topics by the words of their titles, their search words
+  // (labs.json "keys") and their weeks; other labs' topics that match are listed under it. What was typed is kept
+  // while the reader moves between the topics of one lab (labFind).
+  const labFind = { lab: '', q: '', top: 0 };
+  const words = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(Boolean);
+  let labIndex = null;
+  function labTopics() {
+    if (!labIndex) labIndex = SITE.labs.flatMap(l => l.topics.map(t => {
+      const weeks = (t.for || []).flatMap(f => { const [ck, wid] = f.split('/'), n = Number(wid.slice(1)), c = SITE.courses.find(x => x.key === ck); return c ? [c.name, ck, 'week ' + n, 'w' + n, wid] : []; });
+      const own = words([t.title, t.keys || '', ...weeks].join(' '));
+      // a topic of another lab is also found by its lab's name ("coin binomial"); in its own lab that name finds them all
+      return { l, t, href: '#/labs/' + l.id + '/' + t.id, own, all: own.concat(words(l.title)) };
+    }));
+    return labIndex;
+  }
+  // every word typed starts a word of the topic ("order" finds "ordered"); a number must be the whole number
+  const finds = (ws, q) => q.every(w => (/^\d+$/.test(w) ? ws.includes(w) : ws.some(t => t.startsWith(w))));
+  function labNav(def, topic) {
+    const all = labTopics(), mine = all.filter(x => x.l === def), others = all.filter(x => x.l !== def);
+    const link = (x, text) => { const on = x.l === def && x.t === topic; return h('a', { href: x.href, class: on ? 'on' : null, 'aria-current': on ? 'page' : null, text: text || x.t.title }); };
+    const input = h('input', { class: 'field ln-in', type: 'search', placeholder: 'Find a topic', value: labFind.q, autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Find a topic of the ' + def.title });
+    const count = h('div', { class: 'toc-h' });
+    const items = mine.map(x => h('li', {}, link(x)));
+    const none = h('p', { class: 'ln-none' });
+    const elseH = h('div', { class: 'toc-h ln-else', text: 'Other labs' }), elseList = h('ol', { class: 'ln-list' });
+    const nav = h('nav', { class: 'lab-nav', 'aria-label': def.title + ' topics' },
+      h('div', { class: 'ln-find', html: icon('find') }, input), count, h('ol', { class: 'ln-list' }, items), none, elseH, elseList);
+    const draw = () => {
+      const q = words(input.value);
+      let shown = 0;
+      mine.forEach((x, i) => { const hit = !q.length || finds(x.own, q); items[i].hidden = !hit; if (hit) shown++; });
+      count.textContent = q.length ? shown + ' of ' + mine.length + ' topics' : mine.length + ' topics';
+      none.hidden = shown > 0;
+      none.textContent = 'No topic here matches “' + input.value.trim() + '”.';
+      const more = q.length ? others.filter(x => finds(x.all, q)).slice(0, 8) : [];
+      elseList.replaceChildren(...more.map(x => h('li', {}, link(x, x.l.title.replace(/ lab$/, '') + ' · ' + x.t.title))));
+      elseH.hidden = elseList.hidden = !more.length;
+      labFind.q = input.value;
+    };
+    const shownLinks = () => [...nav.querySelectorAll('li:not([hidden]) > a')];
+    input.addEventListener('input', draw);
+    // Enter opens the first topic found; the arrow keys walk down and up the list; Escape empties the box
+    nav.addEventListener('keydown', e => {
+      const links = shownLinks();
+      if (e.target === input) {
+        if (e.key === 'Enter' && links.length) { e.preventDefault(); location.hash = links[0].getAttribute('href'); }
+        else if (e.key === 'ArrowDown' && links.length) { e.preventDefault(); links[0].focus(); }
+        else if (e.key === 'Escape' && input.value) { e.stopPropagation(); input.value = ''; draw(); }
+        return;
+      }
+      const i = links.indexOf(e.target);
+      if (i < 0 || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+      e.preventDefault();
+      if (e.key === 'ArrowUp' && i === 0) input.focus();
+      else links[Math.max(0, Math.min(links.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))].focus();
+    });
+    draw();
+    return nav;
   }
   function labsIndex(v) {
     title('Labs', 'Labs');
@@ -472,6 +616,8 @@
       sheet.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px';
     }
     document.body.append(sheet);
+    // a drop-down under a button far from the right edge (a phone) is moved left only as far as the screen allows
+    if (anchor) sheet.style.right = Math.max(8, Math.min(parseFloat(sheet.style.right), innerWidth - sheet.offsetWidth - 8)) + 'px';
     $('#scrim').hidden = false;
     $('#scrim').classList.toggle('clear', !!anchor);
     requestAnimationFrame(() => sheet.classList.add('open'));
@@ -531,16 +677,297 @@
     document.addEventListener('load', e => { if (e.target.tagName === 'LINK') scan(root); }, true);
   }
 
+  /* ------------------------------------------------------------------ a revision */
+  /* "Start revision" (the bar) starts a stopwatch that follows the reader over every page until "Finish". The time goes
+     to the page being read (a week, a lab topic, a practice set, the formulas…) and, within it, to the section at the
+     reading line (a third of the way down the window; lower near the end, so the last short sections are reached). A
+     page's sections are its h2 and h3 headings, each running to the next; the text above the first counts with the
+     first, and a page without headings is one section. A new section takes the time only after the reader has stayed
+     on it 3 s; till then the time stays with the section before, so sections scrolled past get none. Time away
+     (another tab or app, the phone locked, the Mac asleep) counts for the section left when the reader is back within
+     15 min; a longer absence is a break and none of it counts. 15 min on the page without touching it is a break too
+     (those 15 min are taken back).
+     The strip beside the scroll bar maps the page: a block per section, in page order and in proportion, hollow until
+     read, then a deeper orange (a brighter one in dark mode) the longer it was read; the section at the reading line is
+     ringed; pointing at a block (tapping it on a phone) names it with its time. The bar button opens a panel: Pause,
+     Finish, the page's sections with their times, the other pages of the revision and earlier revisions of the page.
+     Kept apart from REV.store, under revise.rev.cur / revise.rev.past, read fresh and written by one tab at a time
+     (the visible tab the reader last touched), so open tabs never overwrite each other's data. */
+  const RV = { cur: 'revise.rev.cur', past: 'revise.rev.past', dwell: 3000, away: 15 * 60e3 };
+  const rvTab = Math.random().toString(36).slice(2);
+  const rvMem = {};
+  const rvGet = k => { try { const s = localStorage.getItem(k); return s ? JSON.parse(s) : null; } catch (e) { return rvMem[k] || null; } };
+  const rvPut = (k, v) => { rvMem[k] = v; try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private mode: memory only */ } };
+  const clock = ms => { const s = Math.floor(ms / 1000), hh = Math.floor(s / 3600), mm = Math.floor(s / 60) % 60;
+    return (hh ? hh + ':' + String(mm).padStart(2, '0') : mm) + ':' + String(s % 60).padStart(2, '0'); };
+  const rvMins = ms => (ms < 60e3 ? Math.round(ms / 1000) + ' s' : Math.round(ms / 60e3) + ' min');
+  const rvPage = () => { const p = parse().parts; return (/^(labs|practice)$/.test(p[0]) ? p.slice(0, 3) : p.slice(0, 2)).join('/') || 'home'; };
+  const rvTitle = () => document.title.replace(/\s*·\s*Revise$/, '') || 'Revise';
+  let rvSecs = null, rvStrip = null, rvTip = null, rvPanelEl = null;
+  let rvCand = null, rvPend = 0, rvIdle = 0, rvInput = Date.now(), rvBreak = false, rvOwn = true;
+
+  /** The page's sections: its h2 and h3 headings in page order (not those of the contents, the lab list or a sheet). */
+  function rvFind() {
+    const v = view(), seen = new Map();
+    if (!v) return [];
+    return [...v.querySelectorAll('h2, h3')].filter(el => el.offsetParent !== null && !el.closest('.rail, .toc, .lab-nav, .sheet, .phead')).map(el => {
+      const c = el.cloneNode(true);
+      c.querySelectorAll('.katex-mathml').forEach(x => x.remove());
+      const title = c.textContent.replace(/\s+/g, ' ').trim();
+      let key = el.id || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 's';
+      const n = (seen.get(key) || 0) + 1;
+      seen.set(key, n);
+      if (n > 1) key += '~' + n;
+      return { key, title, el };
+    });
+  }
+  /** Where the time goes now: the page and the section at the reading line. */
+  function rvWhere() {
+    const page = rvPage(), list = rvSecs && rvSecs.page === page ? rvSecs.list : [];
+    if (!list.length || !list[0].el) return { page, sec: '', title: rvTitle() };
+    const H = innerHeight, left = document.documentElement.scrollHeight - H - scrollY;
+    const line = Math.max(H * 0.3, H * 0.85 - left);
+    let sec = list[0].key;
+    for (const s of list) { if (s.el.getBoundingClientRect().top <= line) sec = s.key; else break; }
+    return { page, sec, title: rvTitle() };
+  }
+  function rvAdd(r, at, ms) {
+    if (!at || !ms) return;
+    r.ms = Math.max(0, r.ms + ms);
+    const p = r.pages[at.page] || (r.pages[at.page] = { title: at.title || at.page, ms: 0, s: {} });
+    if (at.title) p.title = at.title;
+    p.ms = Math.max(0, p.ms + ms);
+    if (at.sec) p.s[at.sec] = Math.max(0, (p.s[at.sec] || 0) + ms);
+  }
+  /** Lay the strip out for the page on screen (its sections in proportion to the page), or hide it. */
+  function rvLayout(r) {
+    if (!rvStrip) return;
+    if (r === undefined) r = rvGet(RV.cur);
+    rvSecs = null;
+    rvStrip.textContent = '';
+    rvStrip.hidden = !r;
+    document.documentElement.classList.toggle('rv-on', !!r);
+    if (!r) { rvTip.classList.remove('on'); return; }
+    const found = rvFind(), full = document.documentElement.scrollHeight, y0 = scrollY;
+    const list = found.length ? found : [{ key: '', title: 'This page', el: null }];
+    const tops = list.map((s, i) => (i && s.el ? s.el.getBoundingClientRect().top + y0 : 0));
+    list.forEach((s, i) => {
+      s.a = tops[i];
+      s.b = i + 1 < list.length ? tops[i + 1] : full;
+      s.blk = h('i', { class: 'rv-b' });
+      s.blk.style.top = (s.a / full * 100).toFixed(3) + '%';
+      s.blk.style.height = (Math.max(0, s.b - s.a) / full * 100).toFixed(3) + '%';
+      rvStrip.append(s.blk);
+    });
+    rvSecs = { page: rvPage(), list, full };
+    rvPaint(r);
+  }
+  /** Each block's heat (its time against the page's longest-read section, at least a minute) and the ring. */
+  function rvPaint(r) {
+    if (!rvSecs) return;
+    const p = r && r.pages[rvSecs.page], s = (p && p.s) || {}, one = !rvSecs.list[0].el;
+    rvSecs.list.forEach(x => { x.ms = one ? (p ? p.ms : 0) : s[x.key] || 0; });
+    const top = Math.max(60e3, ...rvSecs.list.map(x => x.ms)), here = rvWhere().sec;
+    rvSecs.list.forEach(x => {
+      x.blk.classList.toggle('read', x.ms > 0);
+      x.blk.style.setProperty('--t', (x.ms / top).toFixed(3));
+      x.blk.classList.toggle('on', x.key === here);
+    });
+  }
+  function rvTick() {
+    const r = rvGet(RV.cur), now = Date.now();
+    if (r && rvStrip && (!rvSecs || rvSecs.page !== rvPage() || rvSecs.list.some(x => x.el && !x.el.isConnected))) rvLayout(r);
+    if (r && r.on && r.tab === rvTab && document.visibilityState === 'visible') {
+      const dt = now - r.last;
+      if (dt > 5000 || dt < 0) {                       // this page was not running: away, hidden or asleep
+        if (dt > 0 && dt <= RV.away) rvAdd(r, r.at, dt); // back within 15 min: it counts for the section left
+        rvCand = null; rvPend = 0;
+      } else if (now - rvInput > RV.away) {            // 15 min without touching the page: a break from its start
+        if (rvIdle) { rvAdd(r, r.at, -rvIdle); rvIdle = 0; }
+        rvBreak = true;
+      } else {
+        const w = rvWhere();
+        if (!r.at || w.page !== r.at.page) { if (rvPend) rvAdd(r, r.at, rvPend); r.at = w; rvCand = null; rvPend = 0; rvAdd(r, r.at, dt); }
+        else if (w.sec === r.at.sec) { if (rvPend) rvAdd(r, r.at, rvPend); rvCand = null; rvPend = 0; rvAdd(r, r.at, dt); }
+        else {
+          if (!rvCand || rvCand.sec !== w.sec) { if (rvPend) rvAdd(r, r.at, rvPend); rvCand = { sec: w.sec, since: now - dt }; rvPend = 0; }
+          rvPend += dt;
+          if (now - rvCand.since >= RV.dwell) { r.at = w; rvAdd(r, r.at, rvPend); rvCand = null; rvPend = 0; }
+        }
+        rvIdle += dt;
+      }
+      r.last = now;
+      rvPut(RV.cur, r);
+    }
+    rvShow(r);
+  }
+  /** Settle the time up to now (leaving the page, pausing): what was waiting for the 3 s goes to the section before. */
+  function rvSettle(r, now) {
+    if (!r.on || r.tab !== rvTab) return;
+    if (rvPend) rvAdd(r, r.at, rvPend);
+    const dt = now - r.last;
+    if (dt > 0 && dt <= 5000) rvAdd(r, r.at, dt);
+    rvCand = null; rvPend = 0;
+    r.last = now;
+  }
+  function rvStart() {
+    const now = Date.now();
+    rvCand = null; rvPend = 0; rvIdle = 0; rvInput = now; rvBreak = false;
+    const r = { start: now, on: true, ms: 0, pages: {}, at: null, last: now, tab: rvTab };
+    rvLayout(r);
+    r.at = rvWhere();
+    rvPut(RV.cur, r);
+    rvShow(r);
+  }
+  function rvHold(on) {
+    const r = rvGet(RV.cur), now = Date.now();
+    if (!r) return null;
+    rvSettle(r, now);
+    rvIdle = 0; rvInput = now; rvBreak = false;
+    r.on = on; r.last = now; r.tab = rvTab;
+    if (on) r.at = rvWhere();
+    rvPut(RV.cur, r);
+    rvShow(r);
+    return r;
+  }
+  function rvFinish() {
+    const r = rvHold(false);
+    if (!r) return null;
+    const done = { start: r.start, end: Date.now(), ms: r.ms, pages: r.pages };
+    rvPut(RV.past, [done, ...(rvGet(RV.past) || [])].slice(0, 60));
+    rvPut(RV.cur, null);
+    rvShow(null);
+    return done;
+  }
+  function rvShow(r) {
+    rvOwn = !r || r.tab === rvTab;
+    const btn = $('#rv-btn');
+    if (btn) {
+      const held = !!r && (!r.on || rvBreak);
+      btn.classList.toggle('run', !!r && !held);
+      btn.classList.toggle('held', held);
+      btn.querySelector('.rv-t').textContent = r ? clock(r.ms) : 'Start revision';
+      btn.setAttribute('aria-label', r ? 'Revision ' + (!r.on ? 'paused' : rvBreak ? 'on a break' : 'running') + ', ' + rvMins(r.ms) + ': open the revision panel' : 'Start revision');
+      btn.title = r ? 'This revision: ' + clock(r.ms) : 'Start a revision: the time on each section is counted';
+    }
+    if (!!r !== !!rvSecs) rvLayout(r); else rvPaint(r);
+    if (rvPanelEl && rvPanelEl.isConnected) rvFill(r);
+  }
+  function rvOpen() {
+    rvPanelEl = h('div', { class: 'rv-panel' });
+    openSheet(rvPanelEl, 'Revision', $('#rv-btn'));
+    rvFill(rvGet(RV.cur));
+  }
+  /** The panel: its buttons are made again only when the state changes (so a click is never lost); the lists each second. */
+  function rvFill(r) {
+    const el = rvPanelEl, page = rvPage(), rec = r || el.done;
+    const kind = r ? (r.on ? 'run' : 'held') : el.done ? 'done' : 'none';
+    if (el.dataset.kind !== kind) {
+      el.dataset.kind = kind;
+      el.textContent = '';
+      const acts = h('div', { class: 'rv-acts' });
+      if (r) acts.append(
+        h('button', { class: 'btn sm', type: 'button', text: r.on ? 'Pause' : 'Resume', onclick: () => { const c = rvGet(RV.cur); if (c) rvHold(!c.on); } }),
+        h('button', { class: 'btn sm ghost', type: 'button', text: 'Finish', onclick: () => { el.done = rvFinish(); rvFill(null); } }));
+      else acts.append(h('button', { class: 'btn sm', type: 'button', text: el.done ? 'Start a new revision' : 'Start revision', onclick: () => { el.done = null; rvStart(); } }));
+      el.append(h('div', { class: 'rv-now' }, h('b', { class: 'rv-big' }), h('span', { class: 'rv-st' })), acts, h('div', { class: 'rv-lists' }));
+    }
+    const fmtDay = t => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ', ' + new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const here = r && r.at && rvSecs && rvSecs.page === r.at.page ? (rvSecs.list.find(x => x.key === r.at.sec) || {}).title : '';
+    el.querySelector('.rv-big').textContent = rec ? clock(rec.ms) : '0:00';
+    el.querySelector('.rv-st').textContent = !rec ? 'Start it when you begin: each section counts after 3 s on it.'
+      : !r ? 'Finished · ' + fmtDay(rec.start) + ' – ' + new Date(rec.end).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      : !r.on ? 'Paused' : rvBreak ? 'On a break: 15 min without touching the page' : 'Counting' + (here ? ' · ' + here : '');
+    const lists = el.querySelector('.rv-lists'), p = rec && rec.pages[page];
+    lists.textContent = '';
+    if (rec) {
+      lists.append(h('div', { class: 'rv-h' }, 'This page', h('span', { text: clock(p ? p.ms : 0) })));
+      const secs = rvSecs && rvSecs.page === page ? rvSecs.list : rvFind();   // after Finish the strip is gone
+      if (secs.length && secs[0].el) {
+        const s = (p && p.s) || {}, top = Math.max(60e3, ...secs.map(x => s[x.key] || 0));
+        lists.append(h('ol', { class: 'rv-rows' }, secs.map(x => {
+          const ms = s[x.key] || 0, sw = h('i', { class: 'rv-sw' + (ms ? ' read' : '') });
+          sw.style.setProperty('--t', (ms / top).toFixed(3));
+          return h('li', { class: r && r.at && x.key === r.at.sec && r.at.page === page ? 'on' : null }, sw, h('span', { text: x.title }), h('span', { class: 'tm', text: ms ? clock(ms) : '–' }));
+        })));
+      }
+      const others = Object.entries(rec.pages).filter(([k]) => k !== page).sort((a, b) => b[1].ms - a[1].ms);
+      if (others.length) lists.append(h('div', { class: 'rv-h', text: 'Other pages in this revision' }),
+        h('ol', { class: 'rv-rows' }, others.map(([, q]) => h('li', { class: 'np' }, h('span', { text: q.title }), h('span', { class: 'tm', text: clock(q.ms) })))));
+    }
+    const earlier = (rvGet(RV.past) || []).filter(x => x !== el.done && !(el.done && x.start === el.done.start) && x.pages[page]).slice(0, 5);
+    if (earlier.length) lists.append(h('div', { class: 'rv-h', text: 'Earlier revisions of this page' }),
+      h('ol', { class: 'rv-rows' }, earlier.map(x => h('li', { class: 'np' }, h('span', { text: fmtDay(x.start) }),
+        h('span', { class: 'tm', text: rvMins(x.pages[page].ms) + ' here · ' + rvMins(x.ms) + ' in all' })))));
+    lists.append(h('p', { class: 'rv-key', text: 'The strip beside the scroll bar is this page: a block for each section, hollow until you read it, then a deeper orange (brighter in dark mode) the longer you stay. Point at a block, or tap it, for its name and time. Time away counts if you are back within 15 minutes.' }));
+  }
+  function rvInit() {
+    rvStrip = h('div', { id: 'rv-strip', hidden: true, 'aria-hidden': 'true' });
+    rvTip = h('div', { id: 'rv-tip', 'aria-hidden': 'true' });
+    document.body.append(rvStrip, rvTip);
+    let tipT = 0;
+    const tipAt = y => {
+      if (!rvSecs) return;
+      const at = y / innerHeight * rvSecs.full, list = rvSecs.list;
+      const x = list.find(s => at >= s.a && at < s.b) || list[list.length - 1];
+      rvTip.replaceChildren(h('span', { text: x.title }), h('b', { text: x.ms ? clock(x.ms) : 'not read yet' }));   // a long name gives way, never the time
+      const th = rvTip.offsetHeight || 26;
+      rvTip.style.transform = 'translateY(' + Math.round(Math.min(innerHeight - th - 6, Math.max(6, y - th / 2))) + 'px)';
+      rvTip.classList.add('on');
+    };
+    rvStrip.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') tipAt(e.clientY); });
+    rvStrip.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') rvTip.classList.remove('on'); });
+    rvStrip.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') { tipAt(e.clientY); clearTimeout(tipT); tipT = setTimeout(() => rvTip.classList.remove('on'), 2500); } });
+    // the reader's own input: it keeps the 15-minute break away, and the tab touched last is the one that counts
+    const touch = () => {
+      rvInput = Date.now(); rvIdle = 0; rvBreak = false;
+      if (!rvOwn && document.visibilityState === 'visible') { const r = rvGet(RV.cur); if (r && r.tab !== rvTab) { r.tab = rvTab; rvPut(RV.cur, r); } rvOwn = true; }
+    };
+    ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach(t => addEventListener(t, touch, { passive: true, capture: true }));
+    document.addEventListener('visibilitychange', () => {
+      const r = rvGet(RV.cur);
+      if (!r) return;
+      if (document.visibilityState === 'hidden') { if (r.on && r.tab === rvTab) { rvSettle(r, Date.now()); rvPut(RV.cur, r); } }
+      else { rvInput = Date.now(); rvIdle = 0; rvBreak = false; if (r.tab !== rvTab) { r.tab = rvTab; rvPut(RV.cur, r); } rvTick(); }
+    });
+    // a new page, an answer opened, the window resized: lay the strip out again (once a frame at most)
+    let lay = 0, mark = 0;
+    const relayout = () => { if (rvSecs && !lay) lay = requestAnimationFrame(() => { lay = 0; rvLayout(); }); };
+    new MutationObserver(relayout).observe(view(), { childList: true, subtree: true });
+    if ('ResizeObserver' in window) new ResizeObserver(relayout).observe(view());
+    addEventListener('resize', relayout);
+    addEventListener('hashchange', () => { if (rvGet(RV.cur)) rvLayout(); });
+    addEventListener('scroll', () => {
+      if (rvSecs && !mark) mark = requestAnimationFrame(() => { mark = 0; if (!rvSecs) return; const here = rvWhere().sec; rvSecs.list.forEach(x => x.blk.classList.toggle('on', x.key === here)); });
+    }, { passive: true });
+    addEventListener('storage', e => { if (e.key === RV.cur) rvShow(rvGet(RV.cur)); });
+    $('#rv-btn').addEventListener('click', () => { if (rvGet(RV.cur)) rvOpen(); else rvStart(); });
+    const r = rvGet(RV.cur);
+    if (r && document.visibilityState === 'visible') { r.tab = rvTab; rvPut(RV.cur, r); }
+    rvShow(r);
+    setInterval(rvTick, 1000);
+  }
+
   /* ------------------------------------------------------------------ start */
   REV.start = function () {
     oneScroll();
     $('#settings-btn').addEventListener('click', settings);
     $('#search-btn').addEventListener('click', () => { location.hash = '#/search'; });
     $('#scrim').addEventListener('click', closeSheet);
+    // the panel button in the bar: the line being read stays put while the page widens or narrows
+    const root = document.documentElement;
+    for (const p of Object.values(PANELS)) root.classList.toggle(p.cls, !!REV.store.get(p.key, false));
+    $('#rail-btn').addEventListener('click', () => {
+      const p = panel(), off = !root.classList.contains(p.cls);
+      REV.store.set(p.key, off);
+      keepPlace(p === PANELS.lab ? $('#view .lk-out') || $('#view .lab-main') : $('article.doc'), () => { root.classList.toggle(p.cls, off); panelState(); });
+    });
     addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); if (e.key === '/' && !/input|textarea/i.test(document.activeElement.tagName)) { e.preventDefault(); location.hash = '#/search'; } });
     addEventListener('hashchange', route);
     let last = 0;
     addEventListener('scroll', () => { const y = window.scrollY; document.body.classList.toggle('scrolled', y > 8); last = y; }, { passive: true });
+    scrollTag();
+    rvInit();
     route();
   };
 })();
