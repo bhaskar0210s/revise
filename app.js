@@ -140,7 +140,7 @@
       console.error(e);
       v.append(h('div', { class: 'callout warn', text: 'This page could not be shown: ' + e.message }));
     }
-    setBack(parts);
+    setBack(parts, query);
     panelState();
     if (!(parts[2] && /^(w\d\d|all)$/.test(parts[1] || ''))) window.scrollTo(0, 0);
   }
@@ -159,12 +159,16 @@
     btn.setAttribute('aria-label', label);
     btn.title = tip;
   }
-  function setBack(parts) {
+  function setBack(parts, query = {}) {
     const back = $('#back');
     let to = '#/';
     const c = SITE && SITE.courses.find(x => x.key === parts[0]);
     if (parts[0] === 'labs' && parts[1]) to = '#/labs';
-    else if (parts[0] === 'practice' && parts[1]) to = parts[2] ? '#/practice/' + parts[1] : '#/practice';
+    else if (parts[0] === 'practice' && parts[1]) {
+      // a set goes back to its week, a week to the course's weeks, a course (or the report) to the courses
+      const set = parts[2] && SITE.practice && (SITE.practice[parts[1]] || []).find(x => String(x.id) === parts[2]);
+      to = set ? '#/practice/' + parts[1] + '?w=' + set.week : parts[1] !== 'report' && (parts[2] || query.w != null) ? '#/practice/' + parts[1] : '#/practice';
+    }
     else if (c) to = parts[1] ? '#/' + c.key : c.term ? '#/term/' + c.term : '#/';
     back.href = to;
     back.hidden = !parts.length;
