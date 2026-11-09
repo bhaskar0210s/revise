@@ -263,6 +263,9 @@ body:has(.lab-wrap) #rail-btn .l { display: inline; }
 .plot .fd { fill: var(--sc); stroke: var(--bg-elev); stroke-width: 1; }
 .plot .od { fill: var(--bg-elev); stroke: var(--sc); stroke-width: 1.6; }
 .plot .br { fill: var(--sc); opacity: .75; }
+.plot .hc { fill: color-mix(in srgb, var(--sc) var(--hp), var(--bg-elev)); }
+.plot .hn { fill: var(--ink-2); font: 600 9.5px var(--font); }
+.plot .hn.hd { fill: var(--bg-elev); }
 .plot .ar { fill: color-mix(in srgb, var(--sc) 30%, var(--bg-elev)); }
 .plot-key { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; color: var(--ink-2); font-size: .92em; }
 .pk { display: inline-flex; align-items: center; gap: 7px; }
