@@ -105,17 +105,65 @@
   REV.go = (hash, replace) => { if (replace) history.replaceState(null, '', hash); else location.hash = hash; if (replace) route(); };
   REV.setQuery = (base, query) => {
     const q = Object.entries(query).filter(([, v]) => v !== '' && v != null).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v).replace(/%2F/g, '/').replace(/%2C/g, ',').replace(/%3B/g, ';')).join('&');
-    history.replaceState(null, '', base + (q ? '?' + q : ''));
+    history.replaceState(history.state, '', base + (q ? '?' + q : ''));   // the same entry: its scroll memory stays
   };
+
+  /* Scroll memory: Back, Forward and a reload return to the exact place on every page. Each history entry gets a key
+     (history.state.sk); its place is noted when the entry is left (a link, Back, another site, a reload) and kept in
+     sessionStorage, so a reload finds it too. A changed address keeps its key (REV.setQuery, a section link), except
+     REV.go(…, true), which opens a page afresh. The browser's own restoring is off: it would act before the page is
+     drawn again. */
+  history.scrollRestoration = 'manual';
+  const SPOS = 'rev-scroll';
+  const spos = (() => { try { return JSON.parse(sessionStorage.getItem(SPOS)) || {}; } catch (e) { return {}; } })();
+  let shown = '', backY = null, backRun = 0;   // the entry on screen; the place being returned to
+  REV.scrollBack = false;                      // true while returning there: pages then jump nowhere themselves
+  function entryKey() {
+    const s = history.state;
+    if (s && s.sk) return s.sk;
+    const sk = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    try { history.replaceState(Object.assign({}, s, { sk }), ''); } catch (e) { /* Safari's replaceState limit: no memory for this entry */ }
+    return sk;
+  }
+  function noteScroll() {
+    if (!shown) return;
+    const y = REV.scrollBack && backY != null ? backY : Math.round(window.scrollY);   // left before the return finished
+    delete spos[shown]; spos[shown] = y;   // the newest last, so the oldest are dropped first
+    const keys = Object.keys(spos);
+    keys.slice(0, Math.max(0, keys.length - 300)).forEach(k => delete spos[k]);
+    try { sessionStorage.setItem(SPOS, JSON.stringify(spos)); } catch (e) { /* private mode: no memory across a reload */ }
+  }
+  // Return to y once the page is tall enough: a week's text, a lab or a practice set may still be loading, and fonts
+  // and pictures change heights. y is held until the height has stayed the same for 0.4 s (at most 3 s); the reader's
+  // own scrolling ends it at once.
+  function scrollBackTo(y) {
+    const run = ++backRun, t0 = performance.now();
+    let lastH = -1, still = t0;
+    REV.scrollBack = true;
+    const tick = now => {
+      if (run !== backRun || !REV.scrollBack) return;
+      const H = document.documentElement.scrollHeight, tall = H - innerHeight >= y - 1, late = now - t0 > 3000;
+      if (H !== lastH) { lastH = H; still = now; }
+      if (tall || late) window.scrollTo(0, y);
+      if ((tall && now - still > 400) || late) { REV.scrollBack = false; return; }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
 
   const view = () => $('#view');
   let current = '';
   function route() {
     const { parts, query } = parse();
     const key = parts.join('/');
+    // a new entry (a link) has no place to return to; Back, Forward or a reload find the one noted when it was left.
+    // The same entry drawn again (once practice.js or a lab has loaded) keeps returning to that place.
+    const sk = entryKey();
+    if (sk !== shown) { noteScroll(); shown = sk; backY = sk in spos ? spos[sk] : null; }
+    REV.scrollBack = backY != null;
     const sameView = key.split('/').slice(0, 2).join('/') === current.split('/').slice(0, 2).join('/') && pages.size && /^\w+\/(w\d\d|all)/.test(key);
     closeSheet();
-    if (sameView && parts[2]) { scrollToSection(parts[2]); current = key; return; }
+    if (sameView && parts[2]) { if (backY != null) scrollBackTo(backY); else scrollToSection(parts[2]); current = key; return; }
     current = key;
     const v = view();
     v.innerHTML = '';
@@ -142,7 +190,8 @@
     }
     setBack(parts, query);
     panelState();
-    if (!(parts[2] && /^(w\d\d|all)$/.test(parts[1] || ''))) window.scrollTo(0, 0);
+    if (backY != null) scrollBackTo(backY);
+    else if (!(parts[2] && /^(w\d\d|all)$/.test(parts[1] || ''))) window.scrollTo(0, 0);
   }
   // The panel button in the bar (wide screens) hides the page's side panel so the page fills the window: a week's
   // "On this page" rail (html.rail-off) or a lab's topic list (html.lab-nav-off). Each is kept in this browser for
@@ -321,7 +370,8 @@
       wireDoc(article, key);
       spy(article, toc);
       // arriving at a section: jump there once the fonts have loaded (they change the height of the text above)
-      if (anchor) requestAnimationFrame(() => { article.getBoundingClientRect(); document.fonts.ready.then(() => scrollToSection(anchor, true)); });
+      // (not on Back or a reload: that returns to the place the page was left at)
+      if (anchor && !REV.scrollBack) requestAnimationFrame(() => { article.getBoundingClientRect(); document.fonts.ready.then(() => { if (!REV.scrollBack) scrollToSection(anchor, true); }); });
     }).catch(e => { v.innerHTML = ''; v.append(h('div', { class: 'callout warn', text: 'This page could not be loaded (' + e.message + '). Check the connection and reload.' })); });
   }
   function lectures(list) {
@@ -336,7 +386,7 @@
       const a = e.target.closest('a');
       if (!a) return;
       const href = a.getAttribute('href') || '';
-      if (href.startsWith('#') && !href.startsWith('#/')) { e.preventDefault(); history.replaceState(null, '', '#/' + key + '/' + href.slice(1)); scrollToSection(href.slice(1)); }
+      if (href.startsWith('#') && !href.startsWith('#/')) { e.preventDefault(); history.replaceState(history.state, '', '#/' + key + '/' + href.slice(1)); scrollToSection(href.slice(1)); }
     });
   }
   function scrollToSection(id, jump) {
@@ -968,6 +1018,11 @@
     });
     addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); if (e.key === '/' && !/input|textarea/i.test(document.activeElement.tagName)) { e.preventDefault(); location.hash = '#/search'; } });
     addEventListener('hashchange', route);
+    // the place on the page is noted when the page goes (a reload, another site, the tab hidden on a phone), and the
+    // reader's own scrolling ends a return to an old place
+    addEventListener('pagehide', noteScroll);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') noteScroll(); });
+    for (const t of ['wheel', 'touchstart', 'keydown', 'mousedown']) addEventListener(t, () => { REV.scrollBack = false; backY = null; }, { capture: true, passive: true });
     let last = 0;
     addEventListener('scroll', () => { const y = window.scrollY; document.body.classList.toggle('scrolled', y > 8); last = y; }, { passive: true });
     scrollTag();
