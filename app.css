@@ -227,6 +227,52 @@ body:has(.lab-wrap) #rail-btn .l { display: inline; }
 .scat-c b { font-weight: 700; }
 .doc .scat figcaption { margin-top: 10px; color: var(--ink-2); font-size: .92em; }
 .doc .scat figcaption p { margin: 0; }
+/* ```plot (tools/plot.mjs): a diagram drawn at build time. One panel is at most 480 px wide (its text then stays
+   between 11 and 16 px); small multiples sit 2 a row on a phone and up to data-w a row on a wide screen. Each panel
+   is a card, so an open circle (the value just before a jump) can be filled with the card's own colour. */
+.doc .plot { margin: 1.2em 0; container-type: inline-size; }
+.plot-g { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; max-width: 480px; }
+.plot-g[data-c="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 520px; }
+.plot-g[data-c="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 720px; }
+@container (min-width: 760px) {
+  .plot-g[data-w="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; }
+  .plot-g[data-w="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 900px; }
+  .plot-g[data-w="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 1100px; }
+}
+.plot-g[data-small] { max-width: 460px; }   /* small panels (size under 180 wide) must not grow on a laptop */
+.plot-p { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px; padding: 6px 4px 2px; min-width: 0; }
+.plot-p > svg { display: block; width: 100%; height: auto; overflow: visible; }   /* not KaTeX's own svg in a caption */
+.plot .pa { fill: none; stroke: var(--ink-3); stroke-width: 1; }
+.plot .pg { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
+.plot .pt { fill: var(--ink-3); font: 11px var(--font); }
+.plot-g[data-many] .pt { font-size: 11.5px; }
+.plot .pl { fill: var(--ink-2); font: 12.5px var(--font); }
+.plot-g[data-many] .pl { font-size: 12px; }
+.plot .ptt { fill: var(--ink); font: 650 12.5px var(--font); }
+.plot .mi { font-family: KaTeX_Math, "Times New Roman", serif; font-style: italic; }
+.plot .mr { font-family: KaTeX_Main, "Times New Roman", serif; }
+.plot .c0 { --sc: var(--ink-3); } .plot .c1 { --sc: var(--accent); } .plot .c2 { --sc: var(--y); }
+.plot .c3 { --sc: var(--z); } .plot .c4 { --sc: var(--pick); }
+.plot .ln { fill: none; stroke: var(--sc); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.plot .ln.th { stroke-width: 1.4; }
+.plot .ln.tk { stroke-width: 4.5; stroke-linecap: butt; }
+.plot .ds { stroke-dasharray: 5 4; } .plot .dt { stroke-dasharray: 1.5 3.5; }
+.plot .gl { fill: none; stroke: var(--sc); stroke-width: 1; }
+.plot .ah { fill: var(--sc); }
+.plot .an { fill: none; stroke: var(--sc); stroke-width: 1.5; stroke-linecap: round; }
+.plot .fd { fill: var(--sc); stroke: var(--bg-elev); stroke-width: 1; }
+.plot .od { fill: var(--bg-elev); stroke: var(--sc); stroke-width: 1.6; }
+.plot .br { fill: var(--sc); opacity: .75; }
+.plot .ar { fill: color-mix(in srgb, var(--sc) 30%, var(--bg-elev)); }
+.plot-key { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; color: var(--ink-2); font-size: .92em; }
+.pk { display: inline-flex; align-items: center; gap: 7px; }
+.pk i { display: inline-block; flex: none; }
+.pk-ln { width: 18px; height: 0; border-top: 2.5px solid var(--sc); }
+.pk-ln.ds { border-top-style: dashed; }
+.pk-sq { width: 12px; height: 12px; border-radius: 3px; background: var(--sc); opacity: .75; }
+.pk .c0 { --sc: var(--ink-3); } .pk .c1 { --sc: var(--accent); } .pk .c2 { --sc: var(--y); }
+.pk .c3 { --sc: var(--z); } .pk .c4 { --sc: var(--pick); }
+.doc .plot figcaption { margin-top: 8px; color: var(--ink-2); font-size: .92em; max-width: 46rem; }
 /* KaTeX keeps a hidden copy of each formula, absolutely positioned: anchor it to its formula so it cannot
    escape a scrolling table or box and make the whole page scroll sideways on a phone */
 .katex { position: relative; }
