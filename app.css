@@ -123,6 +123,10 @@ a.wk-a:hover { text-decoration: none; border-color: var(--accent-line); }
 .wk-done .wk-s { color: var(--good); }
 .wk-soon .wk-a { background: transparent; border-style: dashed; }
 .wk-soon .wk-n { background: var(--bg-sunk); color: var(--ink-4); }
+/* a summary of several weeks (between Week 4 and Week 5): the accent card, its "1–4" a little smaller */
+.wk-sum .wk-a { border-color: var(--accent-line); background: var(--accent-soft); }
+.wk-sum .wk-n { font-size: .8em; letter-spacing: -.02em; background: var(--accent); color: var(--bg); }
+.wk-sum.wk-done .wk-n { background: var(--good); color: var(--bg); }
 .course-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; max-width: 52rem; }
 .pill-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border-radius: 99px; background: var(--bg-elev); border: 1px solid var(--line); color: var(--ink-2); font-size: .92em; font-weight: 600; }
 .pill-link:hover { text-decoration: none; border-color: var(--accent-line); color: var(--ink); }

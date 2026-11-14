@@ -82,6 +82,7 @@
     graph: '<circle cx="6" cy="7" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 7h8M7 9l4 7M17 9l-4 7"/>',
     matrix: '<path d="M7 4H5v16h2M17 4h2v16h-2"/><path d="M9 9h1M14 9h1M9 15h1M14 15h1"/>',
     surface: '<path d="M3 16c3-4 6-6 9-6s6 2 9 6"/><path d="M5 19c3-3 5-4 7-4s4 1 7 4"/><path d="M8 12c1-3 2-5 4-5s3 2 4 5"/>',
+    vectors: '<path d="M5 19L19 12M14.5 11.9L19 12l-2.6 3.7"/><path d="M5 19L11 5M7.5 7.8L11 5l.4 4.5"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
     arrow: '<path d="M9 5l7 7-7 7"/>',
     play: '<path d="M8 5.5v13l10-6.5z"/>',
@@ -191,7 +192,7 @@
     setBack(parts, query);
     panelState();
     if (backY != null) scrollBackTo(backY);
-    else if (!(parts[2] && /^(w\d\d|all)$/.test(parts[1] || ''))) window.scrollTo(0, 0);
+    else if (!(parts[2] && /^(w\d\d|all|s\d+-\d+)$/.test(parts[1] || ''))) window.scrollTo(0, 0);
   }
   // The panel button in the bar (wide screens) hides the page's side panel so the page fills the window: a week's
   // "On this page" rail (html.rail-off) or a lab's topic list (html.lab-nav-off). Each is kept in this browser for
@@ -225,6 +226,7 @@
   }
   const title = (t, bar) => { document.title = t ? t + ' · Revise' : 'Revise'; $('#bar-title').textContent = bar || ''; };
   REV.title = title;
+  REV.isDone = isDone;
   REV.script = script;
 
   /* ------------------------------------------------------------------ home */
@@ -306,13 +308,17 @@
       h('h1', { text: c.name }),
       c.blurb ? h('p', { class: 'lede', text: c.blurb }) : null));
     const list = h('ol', { class: 'weeks' });
-    const row = (w, label, href) => h('li', { class: 'wk' + (w.ready ? '' : ' wk-soon') + (isDone(c.key + '/' + w.id) ? ' wk-done' : '') },
+    const row = (w, label, href, sum) => h('li', { class: 'wk' + (sum ? ' wk-sum' : '') + (w.ready ? '' : ' wk-soon') + (isDone(c.key + '/' + w.id) ? ' wk-done' : '') },
       h(w.ready ? 'a' : 'div', { class: 'wk-a', href: w.ready ? href : null },
         h('span', { class: 'wk-n', text: label }),
         h('span', { class: 'wk-t' }, h('b', { text: w.title }),
-          h('small', { text: w.ready ? (w.topics || []).slice(0, 4).join(' · ') + ((w.topics || []).length > 4 ? ' …' : '') : 'Being written' })),
+          h('small', { text: sum ? 'Quiz revision: the formulas and points to remember' : w.ready ? (w.topics || []).slice(0, 4).join(' · ') + ((w.topics || []).length > 4 ? ' …' : '') : 'Being written' })),
         h('span', { class: 'wk-s', html: isDone(c.key + '/' + w.id) ? icon('check') : w.ready ? icon('arrow') : '' })));
-    for (const w of c.weeks) list.append(row(w, String(w.n), '#/' + c.key + '/' + w.id));
+    for (const w of c.weeks) {
+      list.append(row(w, String(w.n), '#/' + c.key + '/' + w.id));
+      // a summary of several weeks comes right after its last week ("Weeks 1 to 4 summary" between Week 4 and Week 5)
+      for (const s of (c.sums || []).filter(x => x.to === w.n)) list.append(row({ ...s, title: 'Weeks ' + s.from + ' to ' + s.to + ' summary' }, s.from + '–' + s.to, '#/' + c.key + '/' + s.id, true));
+    }
     v.append(list);
     if (c.all) {
       v.append(h('h2', { class: 'sec', text: 'All weeks' }));
@@ -327,9 +333,12 @@
 
   /* ------------------------------------------------------------------ week */
   function week(v, c, id, anchor) {
-    const w = id === 'all' ? c.all : c.weeks.find(x => x.id === id);
+    // the weeks in reading order, each summary of several weeks right after its last week
+    const seq = c.weeks.flatMap(x => [x, ...(c.sums || []).filter(s => s.to === x.n)]);
+    const w = id === 'all' ? c.all : seq.find(x => x.id === id);
     if (!w) return notFound(v);
-    const label = id === 'all' ? 'All weeks' : 'Week ' + w.n;
+    const tag = x => x.from ? 'Weeks ' + x.from + '–' + x.to + ' summary' : x.n ? 'Week ' + x.n : 'All weeks';
+    const label = id === 'all' ? 'All weeks' : tag(w);
     title(c.name + ' ' + label, c.name + ' · ' + label);
     v.className = 'week';
     if (!w.ready) {
@@ -348,20 +357,28 @@
       const rail = h('aside', { class: 'rail' }, h('div', { class: 'toc-h', text: 'On this page' }), toc);
       const done = h('button', { class: 'btn done-btn' + (isDone(key) ? ' on' : ''), type: 'button', html: icon('check') + '<span>' + (isDone(key) ? 'Revised' : 'Mark as revised') + '</span>' });
       done.addEventListener('click', () => { const on = !isDone(key); setDone(key, on); done.classList.toggle('on', on); done.lastChild.textContent = on ? 'Revised' : 'Mark as revised'; });
-      const idx = c.weeks.findIndex(x => x.id === id);
-      const prev = id === 'all' ? c.weeks[c.weeks.length - 1] : c.weeks[idx - 1];
-      const next = id === 'all' ? null : (c.weeks[idx + 1] || (c.all && c.all.ready ? c.all : null));
+      const idx = seq.findIndex(x => x.id === id);
+      const prev = id === 'all' ? seq[seq.length - 1] : seq[idx - 1];
+      const next = id === 'all' ? null : (seq[idx + 1] || (c.all && c.all.ready ? c.all : null));
       const nav = h('nav', { class: 'pager' },
-        prev ? h('a', { href: '#/' + c.key + '/' + prev.id, class: 'pg' }, h('small', { text: '← ' + (prev.n ? 'Week ' + prev.n : 'All weeks') }), h('b', { text: prev.title })) : h('span'),
-        next ? h('a', { href: '#/' + c.key + '/' + next.id, class: 'pg pg-next' }, h('small', { text: (next.n ? 'Week ' + next.n : 'All weeks') + ' →' }), h('b', { text: next.title })) : h('span'));
+        prev ? h('a', { href: '#/' + c.key + '/' + prev.id, class: 'pg' }, h('small', { text: '← ' + tag(prev) }), h('b', { text: prev.title })) : h('span'),
+        next ? h('a', { href: '#/' + c.key + '/' + next.id, class: 'pg pg-next' }, h('small', { text: tag(next) + ' →' }), h('b', { text: next.title })) : h('span'));
       const article = h('article', { class: 'doc', html: p.html });
       const tocBtn = h('button', { class: 'toc-fab', type: 'button', html: icon('list') + '<span>Contents</span>' });
       tocBtn.addEventListener('click', () => openSheet(toc.cloneNode(true), 'On this page'));
-      const sets = SITE.practice && id !== 'all' ? (SITE.practice[c.key] || []).filter(x => x.week === w.n) : [];
+      const sets = SITE.practice && id !== 'all' && !w.from ? (SITE.practice[c.key] || []).filter(x => x.week === w.n) : [];
       const ga = sets.find(x => x.kind === 'GA');
-      const practiceLinks = sets.length ? h('div', { class: 'pr-links' },
+      let practiceLinks = sets.length ? h('div', { class: 'pr-links' },
         h('a', { class: 'pill-link', href: '#/practice/' + c.key + '?w=' + w.n, html: icon('check') + '<span>Activity &amp; practice questions · ' + sets.filter(x => x.kind !== 'GA').length + ' sets</span>' }),
         ga ? h('a', { class: 'pill-link', href: '#/practice/' + c.key + '/' + ga.id, html: icon('check') + '<span>Graded assignment</span>' }) : null) : null;
+      // a summary (private copy): the mock tests that come after its weeks, and each week's graded assignment
+      if (SITE.practice && w.from) {
+        const all = SITE.practice[c.key] || [];
+        const mocks = all.filter(x => x.week > w.to && x.week < w.to + 1), gas = all.filter(x => x.kind === 'GA' && x.week >= w.from && x.week <= w.to);
+        practiceLinks = mocks.length || gas.length ? h('div', { class: 'pr-links' },
+          mocks.length ? h('a', { class: 'pill-link', href: '#/practice/' + c.key + '?w=' + mocks[0].week, html: icon('check') + '<span>Mock tests · ' + mocks.length + '</span>' }) : null,
+          gas.map(g => h('a', { class: 'pill-link', href: '#/practice/' + c.key + '/' + g.id, html: icon('check') + '<span>Week ' + g.week + ' graded</span>' }))) : null;
+      }
       v.append(
         h('header', { class: 'phead' }, h('div', { class: 'eyebrow', text: c.name + ' · ' + label }), h('h1', { text: p.title }), p.summary ? h('p', { class: 'lede', text: p.summary }) : null,
           practiceLinks, p.lectures && p.lectures.length ? lectures(p.lectures) : null),
@@ -539,7 +556,7 @@
       const q = words(input.value);
       let shown = 0;
       mine.forEach((x, i) => { const hit = !q.length || finds(x.own, q); items[i].hidden = !hit; if (hit) shown++; });
-      count.textContent = q.length ? shown + ' of ' + mine.length + ' topics' : mine.length + ' topics';
+      count.textContent = q.length ? shown + ' of ' + mine.length + (mine.length === 1 ? ' topic' : ' topics') : mine.length + (mine.length === 1 ? ' topic' : ' topics');
       none.hidden = shown > 0;
       none.textContent = 'No topic here matches “' + input.value.trim() + '”.';
       const more = q.length ? others.filter(x => finds(x.all, q)).slice(0, 8) : [];
@@ -638,7 +655,7 @@
         if (pageHits.length) {
           out.append(h('h2', { class: 'sec', text: 'In the weeks' }));
           const ul = h('ul', { class: 'hits' });
-          pageHits.forEach(x => { const c = SITE.courses.find(cc => cc.key === x.c); ul.append(h('li', {}, h('a', { href: '#/' + x.c + '/' + x.p + '/' + x.a }, h('b', { text: x.t }), h('small', { text: (c ? c.name : x.c) + ' · ' + (x.w ? 'Week ' + x.w : 'All weeks') + (x.f ? ' · formula' : '') })))); });
+          pageHits.forEach(x => { const c = SITE.courses.find(cc => cc.key === x.c); ul.append(h('li', {}, h('a', { href: '#/' + x.c + '/' + x.p + '/' + x.a }, h('b', { text: x.t }), h('small', { text: (c ? c.name : x.c) + ' · ' + (/^s\d+-\d+$/.test(x.p) ? 'Weeks ' + x.p.slice(1).replace('-', '–') + ' summary' : x.w ? 'Week ' + x.w : 'All weeks') + (x.f ? ' · formula' : '') })))); });
           out.append(ul);
         }
         if (practiceHits.length) {

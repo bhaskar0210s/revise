@@ -1,6 +1,6 @@
 /* Revise: offline support. The first visit stores every file of the site; after that it opens without a network.
    A new version has a new cache name: its files are fetched once and the old ones deleted. */
-const CACHE = 'revise-f10e8d391f28';
+const CACHE = 'revise-a6b5d5eacddd';
 const FILES = [
  "./",
  "app.css",
@@ -24,6 +24,7 @@ const FILES = [
  "labs/matrix.js",
  "labs/multivar.js",
  "labs/sets.js",
+ "labs/vectors.js",
  "manifest.webmanifest",
  "p/english1-all.js",
  "p/english1-w01.js",
@@ -39,6 +40,7 @@ const FILES = [
  "p/english1-w11.js",
  "p/english1-w12.js",
  "p/english2-all.js",
+ "p/english2-s1-4.js",
  "p/english2-w01.js",
  "p/english2-w02.js",
  "p/english2-w03.js",
@@ -65,6 +67,7 @@ const FILES = [
  "p/maths1-w11.js",
  "p/maths1-w12.js",
  "p/maths2-all.js",
+ "p/maths2-s1-4.js",
  "p/maths2-w01.js",
  "p/maths2-w02.js",
  "p/maths2-w03.js",
@@ -77,6 +80,7 @@ const FILES = [
  "p/maths2-w10.js",
  "p/maths2-w11.js",
  "p/python-all.js",
+ "p/python-s1-4.js",
  "p/python-w01.js",
  "p/python-w02.js",
  "p/python-w03.js",
@@ -101,6 +105,7 @@ const FILES = [
  "p/stats1-w11.js",
  "p/stats1-w12.js",
  "p/stats2-all.js",
+ "p/stats2-s1-4.js",
  "p/stats2-w01.js",
  "p/stats2-w02.js",
  "p/stats2-w03.js",

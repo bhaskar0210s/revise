@@ -1090,7 +1090,8 @@
         out.append(K.card('Read the answer', K.steps(st)));
         // span
         const where = r === 0 ? 'only the zero vector' : r === n ? 'all of $\\mathbb{R}^{' + n + '}$' : r === 1 ? 'a line through the origin in $\\mathbb{R}^{' + n + '}$' : r === 2 ? 'a plane through the origin in $\\mathbb{R}^{' + n + '}$' : 'a ' + r + '-dimensional subspace of $\\mathbb{R}^{' + n + '}$';
-        out.append(K.card('Span', K.p('The vectors span ' + where + ' (dimension $' + r + '$)' + (r ? '; ' + and(pc.map(j => '$v_{' + (j + 1) + '}$')) + (r === 1 ? ' alone spans' : ' already span') + ' it and ' + (r === 1 ? 'is a basis' : 'form a basis') + ' of the span.' : '.'))));
+        out.append(K.card('Span', K.p('The vectors span ' + where + ' (dimension $' + r + '$)' + (r ? '; ' + and(pc.map(j => '$v_{' + (j + 1) + '}$')) + (r === 1 ? ' alone spans' : ' already span') + ' it and ' + (r === 1 ? 'is a basis' : 'form a basis') + ' of the span.' : '.')),
+          n <= 3 ? K.p('<a href="#/labs/vectors/span?n=' + n + '&v=' + V.map(v => v.map(x => x.str()).join(',')).join(';') + '">See them drawn in the Vector lab</a>: arrows from the origin, and the span as a line, a plane or all of space.') : null));
         // quick rules
         const qr = [];
         if (k > n) qr.push({ text: 'There are $' + k + '$ vectors in $\\mathbb{R}^{' + n + '}$ and $' + k + ' > ' + n + '$: more than $n$ vectors in $\\mathbb{R}^n$ are always dependent (lecture 3.5).' });
