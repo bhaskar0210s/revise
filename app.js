@@ -760,8 +760,10 @@
      (those 15 min are taken back).
      The strip beside the scroll bar maps the page: a block per section, in page order and in proportion, hollow until
      read, then a deeper orange (a brighter one in dark mode) the longer it was read; the section at the reading line is
-     ringed; pointing at a block (tapping it on a phone) names it with its time. The bar button opens a panel: Pause,
-     Finish, the page's sections with their times, the other pages of the revision and earlier revisions of the page.
+     ringed; pointing at a block (tapping it on a phone) names it with its time. The bar button does two things only:
+     "Start revision" starts, and a click on the running clock finishes (the student, 20 Nov: "When I click on the
+     start revision it should start. When I click on the timer it should stop. That's it." No pause, no panel).
+     Every revision is still kept: the one running across reloads and pages, the finished ones in revise.rev.past.
      Kept apart from REV.store, under revise.rev.cur / revise.rev.past, read fresh and written by one tab at a time
      (the visible tab the reader last touched), so open tabs never overwrite each other's data. */
   const RV = { cur: 'revise.rev.cur', past: 'revise.rev.past', dwell: 3000, away: 15 * 60e3 };
@@ -774,7 +776,7 @@
   const rvMins = ms => (ms < 60e3 ? Math.round(ms / 1000) + ' s' : Math.round(ms / 60e3) + ' min');
   const rvPage = () => { const p = parse().parts; return (/^(labs|practice)$/.test(p[0]) ? p.slice(0, 3) : p.slice(0, 2)).join('/') || 'home'; };
   const rvTitle = () => document.title.replace(/\s*·\s*Revise$/, '') || 'Revise';
-  let rvSecs = null, rvStrip = null, rvTip = null, rvPanelEl = null;
+  let rvSecs = null, rvStrip = null, rvTip = null;
   let rvCand = null, rvPend = 0, rvIdle = 0, rvInput = Date.now(), rvBreak = false, rvOwn = true;
 
   /** The page's sections: its h2 and h3 headings in page order (not those of the contents, the lab list or a sheet). */
@@ -918,59 +920,10 @@
       btn.classList.toggle('run', !!r && !held);
       btn.classList.toggle('held', held);
       btn.querySelector('.rv-t').textContent = r ? clock(r.ms) : 'Start revision';
-      btn.setAttribute('aria-label', r ? 'Revision ' + (!r.on ? 'paused' : rvBreak ? 'on a break' : 'running') + ', ' + rvMins(r.ms) + ': open the revision panel' : 'Start revision');
-      btn.title = r ? 'This revision: ' + clock(r.ms) : 'Start a revision: the time on each section is counted';
+      btn.setAttribute('aria-label', r ? 'Revision running, ' + rvMins(r.ms) + ': click to finish it' : 'Start revision');
+      btn.title = r ? 'Click to finish this revision' : 'Start a revision';
     }
     if (!!r !== !!rvSecs) rvLayout(r); else rvPaint(r);
-    if (rvPanelEl && rvPanelEl.isConnected) rvFill(r);
-  }
-  function rvOpen() {
-    rvPanelEl = h('div', { class: 'rv-panel' });
-    openSheet(rvPanelEl, 'Revision', $('#rv-btn'));
-    rvFill(rvGet(RV.cur));
-  }
-  /** The panel: its buttons are made again only when the state changes (so a click is never lost); the lists each second. */
-  function rvFill(r) {
-    const el = rvPanelEl, page = rvPage(), rec = r || el.done;
-    const kind = r ? (r.on ? 'run' : 'held') : el.done ? 'done' : 'none';
-    if (el.dataset.kind !== kind) {
-      el.dataset.kind = kind;
-      el.textContent = '';
-      const acts = h('div', { class: 'rv-acts' });
-      if (r) acts.append(
-        h('button', { class: 'btn sm', type: 'button', text: r.on ? 'Pause' : 'Resume', onclick: () => { const c = rvGet(RV.cur); if (c) rvHold(!c.on); } }),
-        h('button', { class: 'btn sm ghost', type: 'button', text: 'Finish', onclick: () => { el.done = rvFinish(); rvFill(null); } }));
-      else acts.append(h('button', { class: 'btn sm', type: 'button', text: el.done ? 'Start a new revision' : 'Start revision', onclick: () => { el.done = null; rvStart(); } }));
-      el.append(h('div', { class: 'rv-now' }, h('b', { class: 'rv-big' }), h('span', { class: 'rv-st' })), acts, h('div', { class: 'rv-lists' }));
-    }
-    const fmtDay = t => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ', ' + new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    const here = r && r.at && rvSecs && rvSecs.page === r.at.page ? (rvSecs.list.find(x => x.key === r.at.sec) || {}).title : '';
-    el.querySelector('.rv-big').textContent = rec ? clock(rec.ms) : '0:00';
-    el.querySelector('.rv-st').textContent = !rec ? 'Start it when you begin: each section counts after 3 s on it.'
-      : !r ? 'Finished · ' + fmtDay(rec.start) + ' – ' + new Date(rec.end).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-      : !r.on ? 'Paused' : rvBreak ? 'On a break: 15 min without touching the page' : 'Counting' + (here ? ' · ' + here : '');
-    const lists = el.querySelector('.rv-lists'), p = rec && rec.pages[page];
-    lists.textContent = '';
-    if (rec) {
-      lists.append(h('div', { class: 'rv-h' }, 'This page', h('span', { text: clock(p ? p.ms : 0) })));
-      const secs = rvSecs && rvSecs.page === page ? rvSecs.list : rvFind();   // after Finish the strip is gone
-      if (secs.length && secs[0].el) {
-        const s = (p && p.s) || {}, top = Math.max(60e3, ...secs.map(x => s[x.key] || 0));
-        lists.append(h('ol', { class: 'rv-rows' }, secs.map(x => {
-          const ms = s[x.key] || 0, sw = h('i', { class: 'rv-sw' + (ms ? ' read' : '') });
-          sw.style.setProperty('--t', (ms / top).toFixed(3));
-          return h('li', { class: r && r.at && x.key === r.at.sec && r.at.page === page ? 'on' : null }, sw, h('span', { text: x.title }), h('span', { class: 'tm', text: ms ? clock(ms) : '–' }));
-        })));
-      }
-      const others = Object.entries(rec.pages).filter(([k]) => k !== page).sort((a, b) => b[1].ms - a[1].ms);
-      if (others.length) lists.append(h('div', { class: 'rv-h', text: 'Other pages in this revision' }),
-        h('ol', { class: 'rv-rows' }, others.map(([, q]) => h('li', { class: 'np' }, h('span', { text: q.title }), h('span', { class: 'tm', text: clock(q.ms) })))));
-    }
-    const earlier = (rvGet(RV.past) || []).filter(x => x !== el.done && !(el.done && x.start === el.done.start) && x.pages[page]).slice(0, 5);
-    if (earlier.length) lists.append(h('div', { class: 'rv-h', text: 'Earlier revisions of this page' }),
-      h('ol', { class: 'rv-rows' }, earlier.map(x => h('li', { class: 'np' }, h('span', { text: fmtDay(x.start) }),
-        h('span', { class: 'tm', text: rvMins(x.pages[page].ms) + ' here · ' + rvMins(x.ms) + ' in all' })))));
-    lists.append(h('p', { class: 'rv-key', text: 'The strip beside the scroll bar is this page: a block for each section, hollow until you read it, then a deeper orange (brighter in dark mode) the longer you stay. Point at a block, or tap it, for its name and time. Time away counts if you are back within 15 minutes.' }));
   }
   function rvInit() {
     rvStrip = h('div', { id: 'rv-strip', hidden: true, 'aria-hidden': 'true' });
@@ -1012,7 +965,7 @@
       if (rvSecs && !mark) mark = requestAnimationFrame(() => { mark = 0; if (!rvSecs) return; const here = rvWhere().sec; rvSecs.list.forEach(x => x.blk.classList.toggle('on', x.key === here)); });
     }, { passive: true });
     addEventListener('storage', e => { if (e.key === RV.cur) rvShow(rvGet(RV.cur)); });
-    $('#rv-btn').addEventListener('click', () => { if (rvGet(RV.cur)) rvOpen(); else rvStart(); });
+    $('#rv-btn').addEventListener('click', () => { if (rvGet(RV.cur)) rvFinish(); else rvStart(); });
     const r = rvGet(RV.cur);
     if (r && document.visibilityState === 'visible') { r.tab = rvTab; rvPut(RV.cur, r); }
     rvShow(r);

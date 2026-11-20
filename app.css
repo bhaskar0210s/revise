@@ -364,9 +364,10 @@ a.lablink { color: var(--pick); font-weight: 600; }
 
 /* ---------------------------------------------------------------- a revision */
 /* (app.js rv…) the bar button: "Start revision", then the revision's time with a dot (beating while it counts, hollow
-   when paused or on a break); the strip beside the scroll bar: a block per section of the page, in proportion, hollow
-   until read, then --heat-lo → --heat-hi the longer it was read (one hue; its lightness climbs steadily, 0.81 → 0.48 on
-   light, 0.44 → 0.83 on dark), the section at the reading line ringed and wider; the tag naming a block; the panel */
+   on a break); a click on it finishes the revision. The strip beside the scroll bar: a block per section of the page,
+   in proportion, hollow until read, then --heat-lo → --heat-hi the longer it was read (one hue; its lightness climbs
+   steadily, 0.81 → 0.48 on light, 0.44 → 0.83 on dark), the section at the reading line ringed and wider; the tag
+   naming a block */
 .rv-btn { width: auto; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px 0 10px; font-size: 14px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .rv-btn.run, .rv-btn.held { color: var(--ink); background: var(--bg-sunk); }
 .rv-btn.run svg, .rv-btn.held svg { display: none; }
@@ -390,21 +391,6 @@ html.rv-on { --rv-w: 14px; }
 #rv-tip b::before { content: "·"; margin-right: 6px; font-weight: 600; opacity: .6; }
 #rv-tip.on { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { #rv-tip { transition: none; } }
-.rv-panel { display: grid; gap: 12px; }
-.rv-now { display: grid; gap: 2px; }
-.rv-big { font-size: 34px; line-height: 1.1; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
-.rv-st { font-size: 13.5px; line-height: 1.4; color: var(--ink-3); }
-.rv-acts { display: flex; flex-wrap: wrap; gap: 8px; }
-.rv-h { display: flex; justify-content: space-between; gap: 10px; margin: 8px 0 4px; font-size: 12px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
-.rv-h span { letter-spacing: 0; font-variant-numeric: tabular-nums; }
-.rv-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
-.rv-rows li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 4px 0; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
-.rv-rows li.np { grid-template-columns: minmax(0, 1fr) auto; }
-.rv-rows li.on { color: var(--ink); font-weight: 650; }
-.rv-rows .tm { color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.rv-sw { width: 10px; height: 10px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--line-2); }
-.rv-sw.read { box-shadow: none; background-color: color-mix(in oklab, var(--heat-lo), var(--heat-hi) calc(var(--t, 0) * 100%)); }
-.rv-key { margin: 6px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-3); }
 
 /* ---------------------------------------------------------------- sheet */
 .sheet-scrim { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .32); }
