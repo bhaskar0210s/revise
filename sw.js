@@ -1,6 +1,6 @@
 /* Revise: offline support. The first visit stores every file of the site; after that it opens without a network.
    A new version has a new cache name: its files are fetched once and the old ones deleted. */
-const CACHE = 'revise-97d6db4adf0e';
+const CACHE = 'revise-cd237de3ee9e';
 const FILES = [
  "./",
  "app.css",
@@ -81,6 +81,7 @@ const FILES = [
  "p/maths2-w11.js",
  "p/python-all.js",
  "p/python-s1-4.js",
+ "p/python-s1-5.js",
  "p/python-w01.js",
  "p/python-w02.js",
  "p/python-w03.js",
@@ -91,6 +92,7 @@ const FILES = [
  "p/python-w08.js",
  "p/python-w09.js",
  "p/python-w10.js",
+ "p/python-w11.js",
  "p/stats1-all.js",
  "p/stats1-w01.js",
  "p/stats1-w02.js",

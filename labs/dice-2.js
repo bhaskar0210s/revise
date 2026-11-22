@@ -465,9 +465,9 @@
       dieControls({ title: 'Second die $Y$', f: clampInt(s.v.f2, 2, 20, 6), w: s.v.w2, help: null, onChange: (f, w) => s.set({ f2: f, w2: w }) }),
       K.int({ label: 'The total $z$ you ask about', value: clampInt(s.v.z, 2, 40, 8), min: 2, max: 40, onChange: v => s.set({ z: v }) }),
       tries([
-        ['Lecture 2.7: two fair dice, $z = 8$', { f1: 6, w1: '', f2: 6, w2: '', z: 8 }],
-        ['Lecture 2.9: $P(\\text{sum} = 6)$', { f1: 6, w1: '', f2: 6, w2: '', z: 6 }],
-        ['Lecture 2.8: two fair 10-sided dice, $z = 11$', { f1: 10, w1: '', f2: 10, w2: '', z: 11 }],
+        ['Lecture 2.8: two fair dice, $z = 8$', { f1: 6, w1: '', f2: 6, w2: '', z: 8 }],
+        ['Lecture 2.10: $P(\\text{sum} = 6)$', { f1: 6, w1: '', f2: 6, w2: '', z: 6 }],
+        ['Lecture 2.9: two fair 10-sided dice, $z = 11$', { f1: 10, w1: '', f2: 10, w2: '', z: 11 }],
         ['Loaded: a 6 three times as likely', { f1: 6, w1: '1,1,1,1,1,3', f2: 6, w2: '', z: 9 }],
         ['A 6-sided and a 4-sided die', { f1: 6, w1: '', f2: 4, w2: '', z: 7 }],
       ], again(sum, el, ctx, s)));
@@ -494,7 +494,7 @@
         K.p('The dice do not affect each other (they are <b>independent</b>), so one pair $(x, y)$ has chance $P(X = x)\\,P(Y = y)$.' + (both ? ' Here every pair has chance $' + T(F(1, X.f)) + ' \\times ' + T(F(1, Y.f)) + ' = ' + T(F(1, X.f * Y.f)) + '$.' : ''))));
 
       out.append(K.card('The grid: one cell for each pair $(x, y)$',
-        K.p('Rows are the first die, columns the second. Each cell shows its total $x + y$' + (both ? '' : ' and, under it, the chance of that pair') + '. Cells with the same total lie on one slanting line $x + y = z$; the stripes show these lines. The line $x + y = ' + z + '$ is the dark one (lecture 2.7 slides this line across the grid).'),
+        K.p('Rows are the first die, columns the second. Each cell shows its total $x + y$' + (both ? '' : ' and, under it, the chance of that pair') + '. Cells with the same total lie on one slanting line $x + y = z$; the stripes show these lines. The line $x + y = ' + z + '$ is the dark one (lecture 2.8 slides this line across the grid).'),
         diceGrid(X, Y, (x, y, i, j) => {
           const t = x + y, on = t === z;
           return { html: String(t) + (both ? '' : small(X.p[i].mul(Y.p[j]).str())), bg: on ? STRONG : TINT[t % 2], strong: on, title: '(' + x + ', ' + y + '): total ' + t };
@@ -505,7 +505,7 @@
       if (!pairs.length) st.push({ text: 'Your total $z = ' + z + '$ is outside this range, so no pair gives it.', tex: 'P(Z = ' + z + ') = 0' });
       else {
         st.push({ text: 'Find the pairs with $x + y = ' + z + '$. For each first number $x$, the second must be $y = ' + z + ' - x$, and $y$ must be a face of the second die (' + Y.faces[0] + ' to ' + Y.faces[Y.f - 1] + '). So $x$ goes from ' + pairs[0][0] + ' to ' + pairs[pairs.length - 1][0] + ':', tex: pairs.map(([x]) => '(' + x + ', ' + (z - x) + ')').join(',\\ ') });
-        st.push({ text: 'The dice are independent, so each pair has chance $P(X = x)\\,P(Y = y)$. These pairs cannot happen together, so add their chances. This sum is called the <b>convolution</b> (lecture 2.9):', tex: 'P(Z = ' + z + ') = \\sum_{x} P(X = x)\\,P(Y = ' + z + ' - x)' });
+        st.push({ text: 'The dice are independent, so each pair has chance $P(X = x)\\,P(Y = y)$. These pairs cannot happen together, so add their chances. This sum is called the <b>convolution</b> (lecture 2.10):', tex: 'P(Z = ' + z + ') = \\sum_{x} P(X = x)\\,P(Y = ' + z + ' - x)' });
         st.push({ text: 'One term for each pair, first die then second die:', tex: termLines(pairs.map(([, i, j]) => T(X.p[i]) + '\\cdot ' + T(Y.p[j])), 3) });
         st.push({ text: 'Multiply inside each term:', tex: termLines(pairs.map(([, i, j]) => T(X.p[i].mul(Y.p[j]))), 5) });
         st.push({ text: 'Add them up:', tex: '= ' + TX(pZ) });
@@ -519,10 +519,10 @@
         { text: 'The mean of $Z$ from this table equals $E[X] + E[Y]$ (expectation adds up):', tex: al('\\textstyle\\sum_z z\\,P(Z = z) &= ' + TX(EZ), 'E[X] + E[Y] &= ' + T(EX) + ' + ' + T(EY) + ' = ' + TX(EX.add(EY))) }];
       if (both && X.f === Y.f && k >= 0) {
         const n = X.f, num = z <= n + 1 ? z - 1 : 2 * n - z + 1;
-        checks.push({ text: 'Lecture 2.8 gives a formula for two fair $n$-sided dice: $\\frac{z-1}{n^2}$ up to $z = n + 1$, then $\\frac{2n-z+1}{n^2}$. Here $n = ' + n + '$:', tex: 'P(Z = ' + z + ') = ' + (z <= n + 1 ? '\\frac{' + z + ' - 1}{' + n + '^2}' : '\\frac{2\\cdot ' + n + ' - ' + z + ' + 1}{' + n + '^2}') + ' = \\frac{' + num + '}{' + n * n + '} = ' + T(F(num, n * n)) });
+        checks.push({ text: 'Lecture 2.9 gives a formula for two fair $n$-sided dice: $\\frac{z-1}{n^2}$ up to $z = n + 1$, then $\\frac{2n-z+1}{n^2}$. Here $n = ' + n + '$:', tex: 'P(Z = ' + z + ') = ' + (z <= n + 1 ? '\\frac{' + z + ' - 1}{' + n + '^2}' : '\\frac{2\\cdot ' + n + ' - ' + z + ' + 1}{' + n + '^2}') + ' = \\frac{' + num + '}{' + n * n + '} = ' + T(F(num, n * n)) });
       }
       out.append(K.card('The whole distribution of $Z$',
-        K.p('The same steps for every total. The bar for $z = ' + z + '$ is coloured.' + (both && X.f === Y.f ? ' Two fair dice give a triangle: the middle totals have the most pairs (lecture 2.8).' : '')),
+        K.p('The same steps for every total. The bar for $z = ' + z + '$ is coloured.' + (both && X.f === Y.f ? ' Two fair dice give a triangle: the middle totals have the most pairs (lecture 2.9).' : '')),
         barChart({ xs: zs, ys: pz.map(v => v.num()), hi: hiSet, xName: 'z = x + y' }),
         K.table(['$z$', 'pairs', '$P(Z = z)$'], zs.map((t, i) => ['$' + t + '$', String(cnt[i]), '$' + TX(pz[i]) + '$']), { hi: new Set(hiSet), compact: true }),
         K.steps(checks)));
@@ -543,9 +543,9 @@
       K.seg({ label: 'Look at', options: [['max', 'Larger: max'], ['min', 'Smaller: min']], value: s.v.m === 'min' ? 'min' : 'max', onChange: v => s.set({ m: v }) }),
       K.int({ label: 'The value $z$ you ask about', value: clampInt(s.v.z, 1, 20, 3), min: 1, max: 20, onChange: v => s.set({ z: v }) }),
       tries([
-        ['Lecture 2.8: max of two fair dice, $z = 3$', { f1: 6, w1: '', f2: 6, w2: '', m: 'max', z: 3 }],
-        ['Lecture 2.10: min of two fair dice, $z = 1$', { f1: 6, w1: '', f2: 6, w2: '', m: 'min', z: 1 }],
-        ['Lecture 2.8: max of two 10-sided dice', { f1: 10, w1: '', f2: 10, w2: '', m: 'max', z: 7 }],
+        ['Lecture 2.9: max of two fair dice, $z = 3$', { f1: 6, w1: '', f2: 6, w2: '', m: 'max', z: 3 }],
+        ['Lecture 2.11: min of two fair dice, $z = 1$', { f1: 6, w1: '', f2: 6, w2: '', m: 'min', z: 1 }],
+        ['Lecture 2.9: max of two 10-sided dice', { f1: 10, w1: '', f2: 10, w2: '', m: 'max', z: 7 }],
         ['Loaded: 6 three times as likely', { f1: 6, w1: '1,1,1,1,1,3', f2: 6, w2: '1,1,1,1,1,3', m: 'max', z: 6 }],
         ['A 6-sided and a 4-sided die', { f1: 6, w1: '', f2: 4, w2: '', m: 'min', z: 2 }],
       ], again(maxMin, el, ctx, s)));
@@ -581,27 +581,27 @@
         }, '$x \\backslash y$'),
         K.p(cells.length ? 'The dark L has ' + plural(cells.length, 'cell') + ': ' + cells.map(c => '$(' + c[0] + ', ' + c[1] + ')$').join(', ') + '.' : 'No cell has the value ' + z + ': $' + V + '$ goes from ' + lo + ' to ' + hi + '.')));
 
-      // the direct way: three cases that cannot happen together (lecture 2.10)
+      // the direct way: three cases that cannot happen together (lecture 2.11)
       const pX = pAt(X, z), pY = pAt(Y, z);
       const aX = isMax ? cdfAt(X, z - 1) : tailAt(X, z + 1), aY = isMax ? cdfAt(Y, z - 1) : tailAt(Y, z + 1);
       const lt = isMax ? '<' : '>', le = isMax ? '\\le ' + (z - 1) : '\\ge ' + (z + 1);
       const t1 = pX.mul(pY), t2 = pX.mul(aY), t3 = aX.mul(pY);
       out.append(K.card('Every step: add up the L',
         K.steps([
-          { text: '$' + V + ' = ' + z + '$ happens in three ways that cannot happen together (lecture 2.10): both dice show ' + z + '; the first shows ' + z + ' and the second is ' + (isMax ? 'smaller' : 'bigger') + '; the first is ' + (isMax ? 'smaller' : 'bigger') + ' and the second shows ' + z + '. They are the corner and the two arms of the L.',
+          { text: '$' + V + ' = ' + z + '$ happens in three ways that cannot happen together (lecture 2.11): both dice show ' + z + '; the first shows ' + z + ' and the second is ' + (isMax ? 'smaller' : 'bigger') + '; the first is ' + (isMax ? 'smaller' : 'bigger') + ' and the second shows ' + z + '. They are the corner and the two arms of the L.',
             tex: al('P(' + V + ' = ' + z + ') &= P(X = ' + z + ', Y = ' + z + ')', '&\\quad + P(X = ' + z + ', Y ' + lt + ' ' + z + ')', '&\\quad + P(X ' + lt + ' ' + z + ', Y = ' + z + ')') },
           { text: 'The dice are independent, so each part is a product of two chances:', tex: al('&= P(X = ' + z + ')\\,P(Y = ' + z + ')', '&\\quad + P(X = ' + z + ')\\,P(Y ' + le + ')', '&\\quad + P(X ' + le + ')\\,P(Y = ' + z + ')') },
           { text: 'Read the chances from the dice' + (isMax ? ' ($P(Y \\le ' + (z - 1) + ')$ adds the faces up to ' + (z - 1) + ')' : ' ($P(Y \\ge ' + (z + 1) + ')$ adds the faces from ' + (z + 1) + ' up)') + ':', tex: '= ' + T(pX) + '\\cdot ' + T(pY) + ' + ' + T(pX) + '\\cdot ' + T(aY) + ' + ' + T(aX) + '\\cdot ' + T(pY) },
           { text: 'Multiply, then add:', tex: '= ' + T(t1) + ' + ' + T(t2) + ' + ' + T(t3) + ' = ' + TX(pz) },
         ])));
 
-      // the CDF shortcut (lecture 2.10)
+      // the CDF shortcut (lecture 2.11)
       let st;
       if (isMax) {
         const Fz = cdfAt(X, z).mul(cdfAt(Y, z)), Fz1 = cdfAt(X, z - 1).mul(cdfAt(Y, z - 1));
         st = [
           { text: 'The larger number is at most $' + z + '$ exactly when <b>both</b> numbers are at most $' + z + '$:', tex: '\\{M \\le ' + z + '\\} = \\{X \\le ' + z + '\\} \\cap \\{Y \\le ' + z + '\\}' },
-          { text: 'Independence lets us multiply. So the CDF of the max is the product of the two CDFs (lecture 2.10):', tex: al('F_M(' + z + ') &= F_X(' + z + ')\\,F_Y(' + z + ')', '&= ' + T(cdfAt(X, z)) + '\\cdot ' + T(cdfAt(Y, z)) + ' = ' + T(Fz)) },
+          { text: 'Independence lets us multiply. So the CDF of the max is the product of the two CDFs (lecture 2.11):', tex: al('F_M(' + z + ') &= F_X(' + z + ')\\,F_Y(' + z + ')', '&= ' + T(cdfAt(X, z)) + '\\cdot ' + T(cdfAt(Y, z)) + ' = ' + T(Fz)) },
           { text: 'The same for $' + (z - 1) + '$:', tex: al('F_M(' + (z - 1) + ') &= F_X(' + (z - 1) + ')\\,F_Y(' + (z - 1) + ')', '&= ' + T(cdfAt(X, z - 1)) + '\\cdot ' + T(cdfAt(Y, z - 1)) + ' = ' + T(Fz1)) },
           { text: 'The chance of exactly $' + z + '$ is the jump of the CDF at $' + z + '$. It agrees with the L shape:', tex: al('P(M = ' + z + ') &= F_M(' + z + ') - F_M(' + (z - 1) + ')', '&= ' + T(Fz) + ' - ' + T(Fz1) + ' = ' + TX(Fz.sub(Fz1))) },
         ];
@@ -620,7 +620,7 @@
       const checks = [{ text: 'The chances add up to 1:', tex: '\\sum_z P(' + V + ' = z) = ' + T(fsum(pv)) }];
       if (both && X.f === Y.f && k >= 0) {
         const n = X.f, num = isMax ? 2 * z - 1 : 2 * (n - z) + 1;
-        checks.push({ text: isMax ? 'Lecture 2.8: for two fair $n$-sided dice the L for $z$ has $2z - 1$ cells, so $P(M = z) = \\frac{2z-1}{n^2}$:' : 'For two fair $n$-sided dice the L for the min $z$ has $2(n - z) + 1$ cells (lecture 2.10 counts $11, 9, 7, 5, 3, 1$ for six faces):',
+        checks.push({ text: isMax ? 'Lecture 2.9: for two fair $n$-sided dice the L for $z$ has $2z - 1$ cells, so $P(M = z) = \\frac{2z-1}{n^2}$:' : 'For two fair $n$-sided dice the L for the min $z$ has $2(n - z) + 1$ cells (lecture 2.11 counts $11, 9, 7, 5, 3, 1$ for six faces):',
           tex: 'P(' + V + ' = ' + z + ') = \\frac{' + num + '}{' + n + '^2} = ' + T(F(num, n * n)) });
       }
       out.append(K.card('The whole distribution of $' + V + '$',
@@ -782,7 +782,7 @@
         const ux = usedVars(ex), uy = usedVars(ey), dn = v => (v === 'd1' ? 'the first die' : 'the second die');
         const sep = ux.size && uy.size && [...ux].every(v => !uy.has(v));
         out.append(K.card('Why they are independent', K.p(
-          sep ? '$X$ uses only ' + dn([...ux][0]) + ' and $Y$ uses only ' + dn([...uy][0]) + '. The dice do not affect each other, and functions of independent random variables stay independent (lecture 2.9). So this was expected, and every cell confirms it.'
+          sep ? '$X$ uses only ' + dn([...ux][0]) + ' and $Y$ uses only ' + dn([...uy][0]) + '. The dice do not affect each other, and functions of independent random variables stay independent (lecture 2.10). So this was expected, and every cell confirms it.'
             : !ux.size || !uy.size ? 'One of them does not use the dice at all: it is a constant, and a constant is independent of anything.'
               : 'Both use the same die, yet every cell passes: the chances fit exactly. Such a fit can break when a die is loaded (try the chip "The same, second die loaded").')));
       }
@@ -1310,7 +1310,7 @@
       K.check({ label: 'Use the half-step (continuity) correction', value: !!Number(s.v.cc), onChange: v => s.set({ cc: v ? 1 : 0 }) }),
       tries([
         ['One die: flat, not a bell', { n: 1, f: 6, w: '', a: 3, b: 4, cc: 0 }],
-        ['Lecture 2.8: two dice make a triangle', { n: 2, f: 6, w: '', a: 6, b: 8, cc: 0 }],
+        ['Lecture 2.9: two dice make a triangle', { n: 2, f: 6, w: '', a: 6, b: 8, cc: 0 }],
         ['10 dice', { n: 10, f: 6, w: '', a: 30, b: 40, cc: 0 }],
         ['30 dice', { n: 30, f: 6, w: '', a: 100, b: 110, cc: 0 }],
         ['30 lopsided dice: 1 and 6 five times as likely', { n: 30, f: 6, w: '5,1,1,1,1,5', a: 100, b: 110, cc: 0 }],
@@ -1337,7 +1337,7 @@
       for (let k = 0; k <= 160; k++) { const x = smin - 1 + (smax - smin + 2) * k / 160; curve.push([x, phi((x - muN) / sd) / sd]); }
       out.append(K.card('The exact distribution of $S$',
         K.steps(oneSt.concat([
-          { text: 'Add one die at a time. Each step is a convolution (lecture 2.9): a new total $s$ collects the old totals $s - x$, each times the chance of the new face $x$.', tex: al('P(S_{k+1} = s) &= \\sum_x P(S_k = s - x)', '&\\qquad \\times P(X = x)') },
+          { text: 'Add one die at a time. Each step is a convolution (lecture 2.10): a new total $s$ collects the old totals $s - x$, each times the chance of the new face $x$.', tex: al('P(S_{k+1} = s) &= \\sum_x P(S_k = s - x)', '&\\qquad \\times P(X = x)') },
           { text: 'Doing this ' + plural(n - 1, 'time') + ' gives the exact PMF of $S$' + (d.fair ? ': (number of ways to make $s$) ÷ $' + d.f + '^{' + n + '}$' : '') + '. The means and the variances add up:', tex: al('E[S] &= n\\mu = ' + TX(mu), '\\Var(S) &= n\\sigma^2 = ' + TX(v), '\\SD(S) &= \\sqrt{n}\\,\\sigma \\approx ' + r4(sd)) },
         ])),
         K.p('Purple bars: $' + a + ' \\le S \\le ' + b + '$. The orange curve is the normal density with the same mean and SD.'),

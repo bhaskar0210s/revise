@@ -316,8 +316,8 @@
         h('span', { class: 'wk-s', html: isDone(c.key + '/' + w.id) ? icon('check') : w.ready ? icon('arrow') : '' })));
     for (const w of c.weeks) {
       list.append(row(w, String(w.n), '#/' + c.key + '/' + w.id));
-      // a summary of several weeks comes right after its last week ("Weeks 1 to 4 summary" between Week 4 and Week 5)
-      for (const s of (c.sums || []).filter(x => x.to === w.n)) list.append(row({ ...s, title: 'Weeks ' + s.from + ' to ' + s.to + ' summary' }, s.from + '–' + s.to, '#/' + c.key + '/' + s.id, true));
+      // a summary of several weeks comes right after its last week ("Weeks 1 to 4 summary" between Week 4 and Week 5), under its own title
+      for (const s of (c.sums || []).filter(x => x.to === w.n)) list.append(row({ ...s, title: s.title || 'Weeks ' + s.from + ' to ' + s.to + ' summary' }, s.from + '–' + s.to, '#/' + c.key + '/' + s.id, true));
     }
     v.append(list);
     if (c.all) {
@@ -337,7 +337,7 @@
     const seq = c.weeks.flatMap(x => [x, ...(c.sums || []).filter(s => s.to === x.n)]);
     const w = id === 'all' ? c.all : seq.find(x => x.id === id);
     if (!w) return notFound(v);
-    const tag = x => x.from ? 'Weeks ' + x.from + '–' + x.to + ' summary' : x.n ? 'Week ' + x.n : 'All weeks';
+    const tag = x => x.from ? 'Weeks ' + x.from + '–' + x.to + (/^Weeks/.test(x.title || 'Weeks') ? ' summary' : '') : x.n ? 'Week ' + x.n : 'All weeks';
     const label = id === 'all' ? 'All weeks' : tag(w);
     title(c.name + ' ' + label, c.name + ' · ' + label);
     v.className = 'week';
