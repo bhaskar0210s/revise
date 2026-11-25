@@ -22,7 +22,7 @@
       var s = JSON.parse(localStorage.getItem('revise.v1')) || {}, d = document.documentElement;
       if (s.theme && s.theme !== 'auto') d.setAttribute('data-theme', s.theme);
       if (s.size) d.style.setProperty('--size', s.size);
-      if (s.railOff) d.classList.add('rail-off');
+      if (!s.railLock) d.classList.add('rail-off');   // the contents float over the page unless locked
       if (s.labNavOff) d.classList.add('lab-nav-off');
     } catch (e) {}
   </script>

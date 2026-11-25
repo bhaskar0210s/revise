@@ -164,6 +164,22 @@ body:has(.lab-wrap) #rail-btn .l { display: inline; }
 .toc a:hover { color: var(--ink); background: var(--bg-sunk); text-decoration: none; }
 .toc a.on { color: var(--accent-ink); background: var(--accent-soft); }
 .toc-fab { display: none; }
+/* the rail's heading: "On this page" and the lock that keeps the rail beside the text */
+.rail-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+.rail-h .toc-h { margin: 0 0 0 12px; }
+.rail-lock { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px 0 8px; border: 0; border-radius: 99px; background: none; color: var(--ink-3); font: inherit; font-size: 12.5px; font-weight: 650; cursor: pointer; }
+.rail-lock svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.rail-lock:hover { background: var(--bg-sunk); color: var(--ink); }
+.rail-lock[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+.rail-lock:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* unlocked, hovering the panel button floats the rail over the page (html.rail-peek): the text does not move */
+@media (min-width: 1101px) {
+  .rail-off.rail-peek .rail { display: block; position: fixed; z-index: 45; top: calc(56px + env(safe-area-inset-top)); right: calc(16px + env(safe-area-inset-right)); width: 300px; max-height: calc(100vh - 72px - env(safe-area-inset-top)); overflow: auto; overscroll-behavior: contain; padding: 10px 8px 12px; border-radius: 16px; border: 1px solid var(--line-2); background: var(--bg-elev); box-shadow: var(--shadow-2); animation: peek-in .14s ease-out; }
+  .rail-off.rail-peek #rail-btn { background: var(--bg-sunk-2); }
+  .rail-off.rail-peek #rail-btn .pane.r { opacity: .3; }
+}
+@keyframes peek-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .rail-off.rail-peek .rail { animation: none; } }
 @media (max-width: 1100px) {
   .doc-wrap { grid-template-columns: minmax(0, 1fr); }
   .rail, body:has(.doc-wrap) #rail-btn { display: none; }

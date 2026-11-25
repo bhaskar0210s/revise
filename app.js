@@ -88,6 +88,8 @@
     play: '<path d="M8 5.5v13l10-6.5z"/>',
     list: '<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
     find: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+    lock: '<rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
+    unlock: '<rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 6.8-1.2"/>',
   };
   const icon = (name, cls) => '<svg class="' + (cls || 'ic') + '" viewBox="0 0 24 24" aria-hidden="true">' + (I[name] || I.book) + '</svg>';
   REV.icon = icon;
@@ -164,6 +166,8 @@
     REV.scrollBack = backY != null;
     const sameView = key.split('/').slice(0, 2).join('/') === current.split('/').slice(0, 2).join('/') && pages.size && /^\w+\/(w\d\d|all)/.test(key);
     closeSheet();
+    peek(false);
+    PEEK.rail = false;
     if (sameView && parts[2]) { if (backY != null) scrollBackTo(backY); else scrollToSection(parts[2]); current = key; return; }
     current = key;
     const v = view();
@@ -194,20 +198,61 @@
     if (backY != null) scrollBackTo(backY);
     else if (!(parts[2] && /^(w\d\d|all|s\d+-\d+)$/.test(parts[1] || ''))) window.scrollTo(0, 0);
   }
-  // The panel button in the bar (wide screens) hides the page's side panel so the page fills the window: a week's
-  // "On this page" rail (html.rail-off) or a lab's topic list (html.lab-nav-off). Each is kept in this browser for
-  // every page of its kind; index.html sets both before the first paint.
+  // The panel button in the bar (wide screens) works the page's side panel. A week's "On this page" rail is hidden
+  // unless it is locked (html.rail-off; the lock in its heading sets railLock): the text fills the window, hovering the
+  // panel button floats the rail over the page without moving the text (html.rail-peek), and choosing a section closes
+  // it again. The student, 22 Nov: "90% of the time I won't have the sidebar open", "It should not move the page".
+  // Locked, the rail sits beside the text and the panel button unlocks it. A lab's topic list is shown or hidden by
+  // the button (html.lab-nav-off). Both are kept in this browser; index.html sets them before the first paint.
   const PANELS = {
-    rail: { cls: 'rail-off', key: 'railOff', show: ['Show the contents', 'Show “On this page”'], hide: ['Hide the contents', 'Hide “On this page”: the text fills the window'] },
+    rail: { cls: 'rail-off' },
     lab: { cls: 'lab-nav-off', key: 'labNavOff', show: ['Show the topics', 'Show the list of topics'], hide: ['Hide the topics', 'Hide the list of topics: the lab fills the window'] },
   };
   const panel = () => (document.querySelector('#view .lab-wrap') ? PANELS.lab : PANELS.rail);
   function panelState() {
-    const btn = $('#rail-btn'), p = panel(), off = document.documentElement.classList.contains(p.cls), [label, tip] = off ? p.show : p.hide;
+    const btn = $('#rail-btn'), p = panel(), root = document.documentElement;
     if (!btn) return;
+    if (p === PANELS.rail) {
+      const locked = !root.classList.contains('rail-off');
+      btn.setAttribute('aria-expanded', locked || root.classList.contains('rail-peek') ? 'true' : 'false');
+      btn.setAttribute('aria-label', locked ? 'Unlock the contents' : 'Contents');
+      btn.title = locked ? 'Unlock “On this page”: the text fills the window, and hovering here opens the contents over it' : '';
+      const lock = $('#view .rail-lock');
+      if (lock) {
+        lock.setAttribute('aria-pressed', locked ? 'true' : 'false');
+        lock.innerHTML = icon(locked ? 'lock' : 'unlock') + '<span>' + (locked ? 'Locked' : 'Lock') + '</span>';
+        lock.title = locked ? 'Unlock: hide the contents (hover the panel button to open them over the page)' : 'Lock: keep the contents open beside the text';
+      }
+      return;
+    }
+    const off = root.classList.contains(p.cls), [label, tip] = off ? p.show : p.hide;
     btn.setAttribute('aria-expanded', off ? 'false' : 'true');
     btn.setAttribute('aria-label', label);
     btn.title = tip;
+  }
+  // the floating rail: open while the mouse is on the panel button or on the rail, closed a moment after it leaves both
+  const PEEK = { btn: false, rail: false, t: 0 };
+  function peek(on) {
+    clearTimeout(PEEK.t);
+    const root = document.documentElement, rail = $('#view .rail');
+    if (on === root.classList.contains('rail-peek')) return;
+    if (on && (!rail || panel() !== PANELS.rail || !root.classList.contains('rail-off') || innerWidth <= 1100)) return;
+    root.classList.toggle('rail-peek', on);
+    if (on) {   // the section being read is in view in the list
+      const a = rail.querySelector('a.on');
+      if (a && (a.offsetTop < rail.scrollTop || a.offsetTop + a.offsetHeight > rail.scrollTop + rail.clientHeight)) rail.scrollTop = a.offsetTop - rail.clientHeight / 3;
+    }
+    panelState();
+  }
+  function peekSoon(on, ms) {
+    clearTimeout(PEEK.t);
+    PEEK.t = setTimeout(() => { if (on || (!PEEK.btn && !PEEK.rail)) peek(on); }, ms);
+  }
+  function lockRail(on) {
+    REV.store.set('railLock', on);
+    peek(false);
+    PEEK.rail = false;
+    keepPlace($('article.doc'), () => { document.documentElement.classList.toggle('rail-off', !on); panelState(); });
   }
   function setBack(parts, query = {}) {
     const back = $('#back');
@@ -354,7 +399,13 @@
       const toc = h('nav', { class: 'toc', 'aria-label': 'On this page' },
         h('ol', {}, p.toc.filter(t => t.level === 2).map(t => h('li', {}, h('a', { href: '#/' + key + '/' + t.id, 'data-id': t.id, text: t.title })))));
       // the rail's heading sits outside the nav, so the Contents sheet (which shows a copy of the nav) has one heading
-      const rail = h('aside', { class: 'rail' }, h('div', { class: 'toc-h', text: 'On this page' }), toc);
+      const lock = h('button', { class: 'rail-lock', type: 'button', 'aria-label': 'Lock the contents open' });
+      lock.addEventListener('click', () => lockRail(document.documentElement.classList.contains('rail-off')));
+      const rail = h('aside', { class: 'rail' }, h('div', { class: 'rail-h' }, h('div', { class: 'toc-h', text: 'On this page' }), lock), toc);
+      rail.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { PEEK.rail = true; clearTimeout(PEEK.t); } });
+      rail.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { PEEK.rail = false; peekSoon(false, 300); } });
+      rail.addEventListener('click', e => { if (e.target.closest('a')) { PEEK.rail = false; peek(false); } });
+      rail.addEventListener('focusout', e => { if (!rail.contains(e.relatedTarget) && !PEEK.rail && !PEEK.btn && e.relatedTarget !== $('#rail-btn')) peek(false); });
       const done = h('button', { class: 'btn done-btn' + (isDone(key) ? ' on' : ''), type: 'button', html: icon('check') + '<span>' + (isDone(key) ? 'Revised' : 'Mark as revised') + '</span>' });
       done.addEventListener('click', () => { const on = !isDone(key); setDone(key, on); done.classList.toggle('on', on); done.lastChild.textContent = on ? 'Revised' : 'Mark as revised'; });
       const idx = seq.findIndex(x => x.id === id);
@@ -384,6 +435,7 @@
           practiceLinks, p.lectures && p.lectures.length ? lectures(p.lectures) : null),
         h('div', { class: 'doc-wrap' }, article, rail),
         h('div', { class: 'doc-end' }, done), nav, tocBtn);
+      panelState();
       wireDoc(article, key);
       spy(article, toc);
       // arriving at a section: jump there once the fonts have loaded (they change the height of the text above)
@@ -980,13 +1032,28 @@
     $('#scrim').addEventListener('click', closeSheet);
     // the panel button in the bar: the line being read stays put while the page widens or narrows
     const root = document.documentElement;
-    for (const p of Object.values(PANELS)) root.classList.toggle(p.cls, !!REV.store.get(p.key, false));
-    $('#rail-btn').addEventListener('click', () => {
-      const p = panel(), off = !root.classList.contains(p.cls);
+    root.classList.toggle('rail-off', !REV.store.get('railLock', false));
+    root.classList.toggle('lab-nav-off', !!REV.store.get('labNavOff', false));
+    const railBtn = $('#rail-btn');
+    railBtn.addEventListener('click', e => {
+      const p = panel();
+      if (p === PANELS.rail) {
+        if (!root.classList.contains('rail-off')) return lockRail(false);
+        // under the mouse the rail is open already; a tap or a key opens or closes it (a key moves into the list)
+        if (PEEK.btn && root.classList.contains('rail-peek')) return;
+        peek(!root.classList.contains('rail-peek'));
+        const rail = $('#view .rail');
+        if (e.detail === 0 && rail && root.classList.contains('rail-peek')) { const a = rail.querySelector('a.on') || rail.querySelector('a'); if (a) a.focus({ preventScroll: true }); }
+        return;
+      }
+      const off = !root.classList.contains(p.cls);
       REV.store.set(p.key, off);
-      keepPlace(p === PANELS.lab ? $('#view .lk-out') || $('#view .lab-main') : $('article.doc'), () => { root.classList.toggle(p.cls, off); panelState(); });
+      keepPlace($('#view .lk-out') || $('#view .lab-main'), () => { root.classList.toggle(p.cls, off); panelState(); });
     });
-    addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); if (e.key === '/' && !/input|textarea/i.test(document.activeElement.tagName)) { e.preventDefault(); location.hash = '#/search'; } });
+    railBtn.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { PEEK.btn = true; peekSoon(true, 60); } });
+    railBtn.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { PEEK.btn = false; peekSoon(false, 300); } });
+    document.addEventListener('pointerdown', e => { if (root.classList.contains('rail-peek') && !e.target.closest('#view .rail, #rail-btn')) peek(false); }, true);
+    addEventListener('keydown', e => { if (e.key === 'Escape') { closeSheet(); peek(false); } if (e.key === '/' && !/input|textarea/i.test(document.activeElement.tagName)) { e.preventDefault(); location.hash = '#/search'; } });
     addEventListener('hashchange', route);
     // the place on the page is noted when the page goes (a reload, another site, the tab hidden on a phone), and the
     // reader's own scrolling ends a return to an old place
