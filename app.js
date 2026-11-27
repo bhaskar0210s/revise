@@ -437,6 +437,7 @@
         h('div', { class: 'doc-end' }, done), nav, tocBtn);
       panelState();
       wireDoc(article, key);
+      jdFigures(article);
       spy(article, toc);
       // arriving at a section: jump there once the fonts have loaded (they change the height of the text above)
       // (not on Back or a reload: that returns to the place the page was left at)
@@ -457,6 +458,21 @@
       const href = a.getAttribute('href') || '';
       if (href.startsWith('#') && !href.startsWith('#/')) { e.preventDefault(); history.replaceState(history.state, '', '#/' + key + '/' + href.slice(1)); scrollToSection(href.slice(1)); }
     });
+  }
+  /** Interactive joint-density figures (```jd blocks; app/jd.js, loaded with the first page that has one). In a worked
+      example the figure goes beside the steps where there is room (app.css: .has-jd) and under them on a phone: the
+      steps move into one column (.ex-steps) and the figures into the other (.ex-side). */
+  function jdFigures(article) {
+    const figs = [...article.querySelectorAll('figure.jd')];
+    if (!figs.length) return;
+    for (const body of new Set(figs.map(f => f.parentElement))) {
+      if (!body.classList.contains('box-b') || !body.parentElement.classList.contains('ex')) continue;
+      const steps = h('div', { class: 'ex-steps' }), side = h('div', { class: 'ex-side' });
+      [...body.childNodes].forEach(n => (n.nodeType === 1 && n.matches('figure.jd') ? side : steps).append(n));
+      body.append(steps, side);
+      body.classList.add('has-jd');
+    }
+    (REV.jdMount ? Promise.resolve() : script('jd.js')).then(() => figs.forEach(f => REV.jdMount(f))).catch(() => {});
   }
   function scrollToSection(id, jump) {
     const el = document.getElementById(id);
@@ -651,34 +667,115 @@
   }
 
   /* ------------------------------------------------------------------ formulas */
+  // One sheet: the page fills the window and each week's formulas flow down as many columns as fit (one on a phone).
+  // A card shows its title, which links to where it is explained, and its formula. The notes under the formula open
+  // from the card's button, or under every card from Notes (remembered). A card that is a table or a list keeps all.
   function formulas(v, only, q) {
     title('Formulas', 'Formulas');
     v.className = 'formulas';
-    v.append(h('header', { class: 'phead' }, h('h1', { text: 'Formulas' }), h('p', { class: 'lede', text: 'Every formula of every week, with a link back to where it is explained.' })));
+    v.append(h('header', { class: 'phead' }, h('h1', { text: 'Formulas' }), h('p', { class: 'lede', text: 'Every formula of every week on one sheet; a title opens its explanation.' })));
     const withF = SITE.courses.filter(c => c.weeks.some(w => w.ready));
     const chips = h('div', { class: 'chips' }, h('a', { class: 'chip' + (!only ? ' on' : ''), href: '#/formulas', text: 'All' }),
       withF.map(c => h('a', { class: 'chip' + (only === c.key ? ' on' : ''), href: '#/formulas/' + c.key, text: c.name })));
     const input = h('input', { class: 'field search-in', type: 'search', placeholder: 'Find a formula…', value: q, 'aria-label': 'Find a formula' });
-    const out = h('div', { class: 'fm-list' }, h('div', { class: 'loading', text: 'Loading…' }));
-    v.append(chips, input, out);
+    let notesOn = !!REV.store.get('fmNotes', false);
+    const notesBtn = h('button', { class: 'chip fm-all', type: 'button', 'aria-pressed': String(notesOn), title: 'The notes under every formula', html: icon('list') + '<span>Notes</span>' });
+    const count = h('span', { class: 'fm-count' });
+    const out = h('div', { class: 'fm-sheet' + (notesOn ? ' notes' : '') }, h('div', { class: 'loading', text: 'Loading…' }));
+    notesBtn.addEventListener('click', () => {
+      notesOn = !notesOn; REV.store.set('fmNotes', notesOn);
+      notesBtn.setAttribute('aria-pressed', String(notesOn)); out.classList.toggle('notes', notesOn);
+    });
+    v.append(chips, h('div', { class: 'fm-tools' }, input, notesBtn, count), out);
+    // the same with or without apostrophes and with either dash: "chebyshev's" finds "Chebyshev’s inequality" and
+    // "Markov and Chebyshev inequalities"
+    const norm = s => String(s).toLowerCase().replace(/[’‘'`´]s\b/g, '').replace(/[’‘'`´]/g, '').replace(/[–—]/g, '-');
+    // a formula a little wider than its card shrinks to fit (down to 80 %); a much wider one scrolls sideways
+    const fit = () => {
+      const mds = [...out.querySelectorAll('.box-b > .md')];
+      mds.forEach(m => { m.style.fontSize = ''; });
+      const r = mds.map(m => (m.scrollWidth > m.clientWidth + 1 ? m.clientWidth / m.scrollWidth : 1));
+      mds.forEach((m, i) => { if (r[i] < 1 && r[i] >= 0.8) m.style.fontSize = Math.floor(r[i] * 1000) / 10 + '%'; });
+    };
+    let fitWait = 0;
+    const onResize = () => { if (!out.isConnected) { removeEventListener('resize', onResize); return; } clearTimeout(fitWait); fitWait = setTimeout(fit, 150); };
+    addEventListener('resize', onResize);
+    // a course-wide table (formula-pin, such as every common distribution) comes first; the find box keeps the rows
+    // whose name matches ("uniform" keeps both uniforms with all they have), and words such as "expectation",
+    // "variance" or "mgf" match every row
+    const EVERY = 'expectation expected value mean average variance var standard deviation sd mgf moment generating function pmf pdf density cdf distribution distributions table common every all values support parameters formula formulas what is of the a an and for in on to with';
+    const ALSO = [[/normal/, 'gaussian bell'], [/exponential/, 'exp'], [/chi-square/, 'chi square chisquare chi2 χ2 chi squared'], [/negative binomial/, 'negbin'], [/geometric/, 'geo'], [/uniform/, 'unif']];
+    const pinRows = (el, words) => {
+      let shown = 0;
+      el.querySelectorAll('.tbl').forEach(tb => {
+        const lab = tb.previousElementSibling && tb.previousElementSibling.tagName === 'P' ? tb.previousElementSibling : null;
+        const group = norm(EVERY + ' ' + (lab ? lab.textContent : ''));
+        let rows = 0;
+        tb.querySelectorAll('tbody tr').forEach(tr => {
+          const name = norm(tr.cells[0] ? tr.cells[0].textContent : '');
+          const s = group + ' ' + name + ' ' + ALSO.filter(([re]) => re.test(name)).map(x => x[1]).join(' ');
+          const keep = words.every(wd => s.includes(wd));
+          tr.hidden = !keep;
+          if (keep) rows++;
+        });
+        tb.hidden = !rows;
+        if (lab) lab.hidden = !rows;
+        shown += rows;
+      });
+      return shown;
+    };
+    const card = f => {
+      const el = h('div', { class: 'fm-item', html: f.html });
+      const head = el.querySelector('.box-h'), body = el.querySelector('.box-b'), t = el.querySelector('.box-t');
+      if (t) { const a = h('a', { class: 'fm-t', href: '#/' + f.c + '/' + f.p + '/' + f.id, title: 'Where it is explained' }); t.replaceWith(a); a.append(t); }
+      // the notes: everything in the body but the displayed formulas (.md), wrapped run by run so the order stays
+      if (body && body.querySelector(':scope > .md')) {
+        let run = null, any = false;
+        for (const n of [...body.childNodes]) {
+          if (n.nodeType === 1 && n.classList.contains('md')) { run = null; continue; }
+          if (n.nodeType === 1 && n.tagName === 'P' && !n.textContent.trim() && !n.children.length) { n.remove(); continue; }   // left empty by a display inside a paragraph
+          if (n.nodeType === 3 && !n.textContent.trim()) { if (run) run.append(n); continue; }
+          if (!run) { run = h('div', { class: 'fm-notes' }); body.insertBefore(run, n); any = true; }
+          run.append(n);
+        }
+        if (any && head) {
+          const b = h('button', { class: 'fm-nb', type: 'button', 'aria-expanded': 'false', 'aria-label': 'Notes', title: 'Show the notes', html: icon('arrow') });
+          b.addEventListener('click', () => { const o = el.classList.toggle('open'); b.setAttribute('aria-expanded', String(o)); b.title = o ? 'Hide the notes' : 'Show the notes'; });
+          head.append(b);
+        }
+      }
+      return el;
+    };
     getData('formulas').then(list => {
       const draw = () => {
-        const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+        const words = norm(input.value).split(/\s+/).filter(Boolean);
         out.innerHTML = '';
-        let n = 0;
+        let n = 0, total = 0;
         for (const c of SITE.courses) {
           if (only && c.key !== only) continue;
-          const mine = list.filter(f => f.c === c.key && words.every(wd => (f.t + ' ' + f.wt).toLowerCase().includes(wd)));
-          if (!mine.length) continue;
+          const all = list.filter(f => f.c === c.key);
+          total += all.length;
+          const pins = all.filter(f => f.pin).map(card).filter(el => pinRows(el, words));
+          const mine = all.filter(f => { if (f.pin) return false; const s = norm(f.t + ' ' + f.wt); return words.every(wd => s.includes(wd)); });
+          if (!pins.length && !mine.length) continue;
           out.append(h('h2', { class: 'sec', text: c.name }));
+          if (pins.length) {
+            n += pins.length;
+            out.append(h('section', { class: 'fm-wk fm-top' }, h('h3', { class: 'fm-week' }, h('a', { href: '#/' + c.key + '/all', text: 'All weeks' })), pins));
+          }
           for (const wkn of [...new Set(mine.map(f => f.w))].sort((a, b) => (a || 99) - (b || 99))) {
             const fs = mine.filter(f => f.w === wkn);
-            out.append(h('h3', { class: 'fm-week' }, h('a', { href: '#/' + c.key + '/' + fs[0].p, text: (wkn ? 'Week ' + wkn + ' · ' : '') + fs[0].wt })));
-            fs.forEach(f => { n++; const card = h('div', { class: 'fm-item', html: f.html }); card.append(h('a', { class: 'fm-go', href: '#/' + c.key + '/' + f.p + '/' + f.id, text: 'Where it is explained →' })); out.append(card); });
+            n += fs.length;
+            out.append(h('section', { class: 'fm-wk' },
+              h('h3', { class: 'fm-week' }, h('a', { href: '#/' + c.key + '/' + fs[0].p, text: (wkn ? 'Week ' + wkn + ' · ' : '') + fs[0].wt })),
+              h('div', { class: 'fm-cols' }, fs.map(card))));
           }
         }
+        count.textContent = words.length ? n + ' of ' + total : total + ' formulas';
         if (!n) out.append(h('p', { class: 'empty', text: words.length ? 'No formula matches “' + input.value + '”.' : 'No formulas yet.' }));
+        requestAnimationFrame(fit);
       };
+      if (document.fonts) document.fonts.ready.then(() => { if (out.isConnected) fit(); });
       input.addEventListener('input', () => { REV.setQuery('#/formulas' + (only ? '/' + only : ''), { q: input.value }); draw(); });
       draw();
     }).catch(() => { out.innerHTML = '<p class="empty">The formulas could not be loaded.</p>'; });

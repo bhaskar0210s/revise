@@ -437,13 +437,113 @@ html.rv-on { --rv-w: 14px; }
 .labtile .chip { min-height: 36px; font-size: 13.5px; }
 .used-in { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 24px 0 0; color: var(--ink-3); font-size: .9em; }
 
+/* ---------------------------------------------------------------- joint-density figures (```jd blocks, app/jd.js) */
+/* a solid the reader turns (sideways on a phone, so the page still scrolls), its event's part in green, a slice in
+   amber with its curve below. In a worked example with room the figure stands beside the steps and stays in view. */
+figure.jd { margin: 1em 0 .5em; padding: 10px 12px 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); min-width: 0; }
+.jd-cases { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
+.jd-cases button, .jd-btns button { font: inherit; font-size: 13.5px; font-weight: 600; min-height: 34px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--bg-elev); color: var(--ink-2); cursor: pointer; }
+.jd-cases button:hover, .jd-btns button:hover { border-color: var(--accent-line); }
+.jd-cases button[aria-pressed="true"], .jd-btns button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-ink); }
+canvas.jd-3d { display: block; width: 100%; aspect-ratio: 5 / 4; max-height: clamp(240px, 44vh, 360px); cursor: grab; touch-action: pan-y; border-radius: 8px; }
+canvas.jd-3d.on { cursor: grabbing; }
+canvas.jd-2d { display: block; width: 100%; height: 132px; margin-top: 8px; }
+.jd-key { list-style: none; display: grid; gap: 3px; margin: 6px 2px 8px; padding: 0; font-size: .86em; line-height: 1.42; color: var(--ink-2); }
+.jd-key li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 8px; align-items: start; margin: 0; }
+.jd-key b { color: var(--ink); font-weight: 650; }
+.jd-key i { width: 13px; height: 13px; margin-top: .24em; border: 1.5px solid; border-radius: 3px; }
+.jd-key .k-acc { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.jd-key .k-ev { border-color: var(--good); background: color-mix(in srgb, var(--good) 55%, transparent); }
+.jd-key .k-sl { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 55%, transparent); }
+.jd-key .k-pk { border-color: var(--pick); background: color-mix(in srgb, var(--pick) 55%, transparent); }
+.jd-key .k-ink { border-color: var(--ink-3); background: var(--ink-3); }
+.jd-key .k-line { height: 0; margin-top: .66em; border-width: 2.5px 0 0; border-radius: 0; background: none; }
+.jd-key .k-c0 { border-color: var(--ink-3); background: color-mix(in srgb, var(--ink-3) 35%, transparent); }
+.jd-key .k-c1 { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 70%, transparent); }
+.jd-key .k-c2 { border-color: var(--y); background: color-mix(in srgb, var(--y) 70%, transparent); }
+.jd-key .k-c3 { border-color: var(--z); background: color-mix(in srgb, var(--z) 70%, transparent); }
+.jd-key .k-c4 { border-color: var(--pick); background: color-mix(in srgb, var(--pick) 70%, transparent); }
+.jd-key .k-line { background: none; }
+.jd-key .k-dash { border-top-style: dashed; }
+.jd-key .k-dot { width: 11px; height: 11px; margin-top: .3em; border-radius: 50%; }
+canvas.jd-plot { display: block; width: 100%; height: clamp(190px, 34vh, 250px); }
+canvas.jd-plot.flat { height: 120px; }
+.jd-read p { margin: 0 0 2px; }
+.jd-ctrl label[hidden], .jd-btns[hidden], .jd-key[hidden] { display: none; }
+.jd-read { margin: 4px 2px 8px; min-height: 2.9em; font-size: .92em; line-height: 1.45; color: var(--ink-2); }
+.jd-read b { color: var(--ink); }
+.jd-ctrl { display: grid; gap: 4px; }
+.jd-ctrl label { display: grid; grid-template-columns: 6.2em minmax(0, 1fr) 3.4em; align-items: center; gap: 10px; font-size: .88em; color: var(--ink-2); }
+.jd-ctrl input[type=range] { width: 100%; min-height: 30px; margin: 0; accent-color: var(--accent); }
+.jd-ctrl output { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+.jd-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
+.jd-hint { margin-left: auto; color: var(--ink-3); font-size: 12.5px; }
+figure.jd figcaption { margin-top: 8px; color: var(--ink-3); font-size: .86em; line-height: 1.45; }
+.doc > figure.jd { max-width: 44rem; }   /* a figure on its own, under a table or a formula */
+.box.ex:has(> .has-jd) { container-type: inline-size; overflow: clip; }   /* clip, not hidden: the figure can stay in view */
+.ex-steps > :first-child { margin-top: .4em; }
+.ex-side > figure.jd:last-child { margin-bottom: .3em; }
+@container (min-width: 820px) {
+  .box-b.has-jd { display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, 42%); column-gap: 22px; align-items: start; }
+  .box-b.has-jd > .ex-side > figure.jd:first-child { margin-top: .5em; }
+}
+@media (min-height: 780px) { @container (min-width: 820px) { .box-b.has-jd > .ex-side { position: sticky; top: 66px; } } }
+
 /* ---------------------------------------------------------------- formulas, search */
-.fm-week { font-size: 1em; margin: 18px 0 8px; }
+/* the formulas page is one sheet: it fills the window, and each week's formulas flow down as many columns as fit (one
+   on a phone). A card shows its title (a link to where it is explained) and its formula; its notes open from the
+   card's button, or under every card from Notes. */
+#view.formulas { max-width: none; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+@media (min-width: 900px) { #view.formulas { padding-left: max(28px, env(safe-area-inset-left)); padding-right: max(28px, env(safe-area-inset-right)); } }
+.fm-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 4px; }
+.fm-tools .search-in { flex: 0 1 34rem; min-width: 0; margin: 0; }
+.fm-all .ic { width: 17px; height: 17px; margin: 0 6px 0 -2px; }
+.fm-all[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-ink); }
+.fm-count { color: var(--ink-3); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.fm-week { font-size: 1em; margin: 20px 2px 10px; }
 .fm-week a { color: var(--ink-2); }
-.fm-item { max-width: var(--measure); margin: 0 0 12px; }
+.fm-cols { columns: 20rem; column-gap: 12px; }
+.fm-item { break-inside: avoid; margin: 0 0 12px; }
 .fm-item .box { margin: 0; }
-.fm-go { display: inline-block; margin: 6px 4px 0; font-size: .85em; }
-.fm-list .md { overflow-x: auto; }
+.fm-item .box-h { flex-wrap: nowrap; align-items: flex-start; gap: 4px; padding: 9px 6px 0 14px; }
+.fm-item .box-k { display: none; }
+.fm-t { flex: 1; min-width: 0; padding: 4px 0 0; color: var(--ink); font-size: .93em; line-height: 1.35; }
+.fm-t:hover { color: var(--accent-ink); }
+.fm-nb { flex: none; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--ink-3); cursor: pointer; }
+.fm-nb:hover { background: var(--bg-sunk); color: var(--ink); }
+.fm-nb .ic { width: 16px; height: 16px; transform: rotate(90deg); transition: transform .15s; }
+.fm-item.open .fm-nb .ic { transform: rotate(-90deg); }
+.fm-sheet.notes .fm-nb { display: none; }
+.fm-item .box-b { padding: 0 14px 8px; }
+.fm-item .katex-display { margin: .5em 0; }
+@media (min-width: 561px) { .fm-sheet .katex-display > .katex { font-size: 1em; } }   /* 1.08em on the pages; four columns fit on a 1440 px screen */
+.fm-sheet:not(.notes) .fm-item:not(.open) .fm-notes { display: none; }
+.fm-notes { font-size: .9em; color: var(--ink-2); }
+.fm-sheet .md { overflow-x: auto; }
+/* a course-wide table (a formula-pin box, such as every common distribution): a full table where it has room; where it
+   has not (a phone, the All weeks page's column) a card per row, each cell with its column's heading (.cell-k, added
+   by the build). On the Formulas page it comes first, across the full width. */
+.box.fm-pin .box-b { container-type: inline-size; }
+.box.fm-pin [hidden] { display: none !important; }
+.box.fm-pin .cell-k { display: none; }
+.box.fm-pin .tbl { overflow-x: auto; margin: .5em 0 1em; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-elev); }
+.box.fm-pin table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.box.fm-pin th, .box.fm-pin td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.box.fm-pin th { background: var(--bg-sunk); font-weight: 650; white-space: nowrap; }
+.box.fm-pin tbody tr:last-child td { border-bottom: 0; }
+.box.fm-pin td:first-child { min-width: 10em; }
+.box.fm-pin td:last-child { min-width: 14em; color: var(--ink-2); }
+@container (max-width: 1099px) {
+  .box.fm-pin .tbl { overflow: visible; border: 0; border-radius: 0; background: none; }
+  .box.fm-pin table, .box.fm-pin tbody, .box.fm-pin tr { display: block; }
+  .box.fm-pin thead { display: none; }
+  .box.fm-pin tr { margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-elev); }
+  .box.fm-pin td { display: grid; grid-template-columns: 6.4em minmax(0, 1fr); gap: 10px; min-width: 0; padding: 3px 0; border: 0; }
+  .box.fm-pin td:first-child { display: block; min-width: 0; padding: 0 0 6px; font-size: 1.04em; }
+  .box.fm-pin td:last-child { min-width: 0; }
+  .box.fm-pin .cell-k { display: block; padding-top: .1em; color: var(--ink-3); font-size: .88em; }
+}
+.fm-top .fm-item { margin-bottom: 4px; }
 .hits { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; max-width: 46rem; }
 .hits a { display: grid; padding: 10px 14px; border-radius: 12px; background: var(--bg-elev); border: 1px solid var(--line); color: var(--ink); }
 .hits a:hover { text-decoration: none; border-color: var(--accent-line); }
